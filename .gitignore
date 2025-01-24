@@ -1,0 +1,14 @@
+tls.crt
+tls.key
+ca.crt
+id_rsa
+id_rsa.pub
+sensitive
+bundle
+.DS_Store
+.bash_history
+.cache
+.local
+.ansible
+.ssh
+.kube
