@@ -12,3 +12,4 @@ bundle
 .ansible
 .ssh
 .kube
+*.kubeconfig

@@ -1,0 +1,11 @@
+FROM ubuntu:24.04
+
+RUN apt update && \
+apt install -y --no-install-recommends openssh-server && \
+rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+
+RUN service ssh start
+
+EXPOSE 22
+
+CMD ["/usr/sbin/sshd","-D"]

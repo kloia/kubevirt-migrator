@@ -1,0 +1,17 @@
+FROM ubuntu:24.04
+
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install \
+    fdisk \
+    rclone \
+    sshfs \
+    progress \
+    libguestfs-xfs \
+    ca-certificates \
+    dumb-init \
+    curl \
+    libguestfs-tools \
+    linux-image-generic \
+    qemu-utils \
+    tzdata \
+ && rm -rf /tmp/* /var/lib/apt/list/*
