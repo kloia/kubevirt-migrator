@@ -24,7 +24,7 @@ KubeVirt Migrator is a tool designed to facilitate the migration of virtual mach
    wget https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz
    tar xvf openshift-client-linux.tar.gz
    sudo mv oc /usr/local/bin/
-
+    ```
 
 2. **yq** (YAML processor)
 
@@ -34,14 +34,14 @@ KubeVirt Migrator is a tool designed to facilitate the migration of virtual mach
     chmod +x /usr/bin/yq
     ```
     ##### On macOS
-    ```
+    ```bash
     brew install yq
     ```
 
 3. **virtctl** (KubeVirt CLI tool)
 
     #### Download and Install virtctl
-    ```
+    ```bash
     export VERSION=$(curl -s https://api.github.com/repos/kubevirt/kubevirt/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
     wget https://github.com/kubevirt/kubevirt/releases/download/${VERSION}/virtctl-${VERSION}-linux-amd64
     chmod +x virtctl-${VERSION}-linux-amd64
