@@ -133,7 +133,6 @@ else
         echo $dst_host_ip
         echo "Suspending CronJob"
         oc patch cronjob $VM_NAME-repl-cronjob -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG -p '{"spec" : {"suspend" : true }}' 
-        #oc delete cronjob $VM_NAME-repl-cronjob -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG --wait
         echo "Stopping source VM"
         virtctl stop $VM_NAME --kubeconfig $SRC_KUBECONFIG
         while [[ $( oc get vm $VM_NAME -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG --no-headers | awk '{print $3}') != "Stopped"  ]]

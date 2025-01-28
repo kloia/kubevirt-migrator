@@ -2,8 +2,8 @@ apiVersion: v1
 kind: Pod
 metadata:
   labels:
-    app: rhel9-test-8-dst-replicator
-  name: rhel9-test-8-dst-replicator
+    app: rhel9-test-9-dst-replicator
+  name: rhel9-test-9-dst-replicator
 spec:
   containers:
     - image: kloiadocker/ssh-server
@@ -21,4 +21,4 @@ spec:
   volumes:
     - name: rootdisk
       persistentVolumeClaim:
-        claimName: rhel9-test-8
+        claimName: rhel9-test-9

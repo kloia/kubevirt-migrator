@@ -18,6 +18,8 @@ SRC_KUBECONFIG=""
 DST_KUBECONFIG=""
 VERBOSE=0
 PVC_NAME=""
+DST_HOST_IP=""
+DST_NODE_PORT=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -70,7 +72,7 @@ else
             yq e -i '.spec.running = false' $VM_NAME-vm.yaml
             oc apply --wait -n $NAMESPACE --kubeconfig $DST_KUBECONFIG -f $VM_NAME-vm.yaml
             echo "Waiting for the destination VM to be created ...... "
-            c=1
+            i=0
             while [[ $( oc get vm $VM_NAME -n $NAMESPACE --kubeconfig $DST_KUBECONFIG --no-headers | awk '{print $3}') != "Stopped"  ]]
             do
                 echo "$i"
@@ -128,13 +130,16 @@ else
         echo "Getting destination NodePort"
         dst_node_port=`oc get svc $VM_NAME-dst-svc -n $NAMESPACE --kubeconfig $DST_KUBECONFIG -o=jsonpath='{.spec.ports[0].nodePort}'`
         echo $dst_node_port
+        export DST_NODE_PORT=$dst_node_port
         echo "Getting destination Host IP"
         dst_host_ip=`oc get po $VM_NAME-dst-replicator -n $NAMESPACE --kubeconfig $DST_KUBECONFIG -o=jsonpath='{.status.hostIP}'`
         echo $dst_host_ip
+        export DST_HOST_IP=$dst_host_ip
         echo "Starting initial volume replication"
-        oc exec $VM_NAME-src-replicator -ti -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG -- /bin/bash -c "mkdir /data/dimg; sshfs -o StrictHostKeyChecking=no -o port=$dst_node_port $dst_host_ip:/data/simg /data/dimg; cp -p --sparse=always /data/simg/disk.img /data/dimg/ & progress -m"
+        #oc exec $VM_NAME-src-replicator -ti -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG -- /bin/bash -c "mkdir /data/dimg; sshfs -o StrictHostKeyChecking=no -o port=$dst_node_port $dst_host_ip:/data/simg /data/dimg; cp -p --sparse=always /data/simg/disk.img /data/dimg/ & progress -m"
         echo "Creating CronJob for async replication"
         yq e -i '.metadata.name = env(VM_NAME)+"-repl-cronjob"' manifests/src-cronjob.yaml
+        yq e -i '.spec.jobTemplate.spec.template.spec.containers[0].command[2]="mkdir /data/dimg /data/dfs /data/sfs/; sshfs -o StrictHostKeyChecking=no -o port="+env(DST_NODE_PORT)+" "+ env(DST_HOST_IP)+":/data/simg /data/dimg; guestmount -a /data/simg/disk.img -m /dev/sda4 --ro /data/sfs; guestmount -a /data/dimg/disk.img -m /dev/sda4 --rw /data/dfs; rclone sync --progress /data/sfs/ /data/dfs/ --skip-links"' manifests/src-cronjob.yaml;
         yq e -i '.spec.jobTemplate.spec.template.spec.volumes[0].persistentVolumeClaim.claimName = env(VM_NAME)' manifests/src-cronjob.yaml
         yq e -i '.spec.jobTemplate.spec.template.spec.volumes[1].secret.secretName = env(VM_NAME)+"-repl-ssh-keys"' manifests/src-cronjob.yaml
         oc apply -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG -f manifests/src-cronjob.yaml
