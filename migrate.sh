@@ -100,7 +100,7 @@ else
 
         echo "Generating source replicator SSH key"
         oc exec $VM_NAME-src-replicator -ti -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG -- bash -c "ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa"
-        oc wait pod $VM_NAME-src-replicator -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG --for=condition=Ready
+        oc wait pod $VM_NAME-src-replicator -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG --for=condition=Ready --timeout=-1m
         echo "Generating source SSH secret"
         oc cp $VM_NAME-src-replicator:/root/.ssh/id_rsa id_rsa -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG
         oc cp $VM_NAME-src-replicator:/root/.ssh/id_rsa.pub id_rsa.pub -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG
@@ -117,7 +117,7 @@ else
         yq e -i '.metadata.name = env(VM_NAME)+"-dst-svc"' manifests/dst-repl-svc.yaml
         yq e -i '.metadata.labels.app = env(VM_NAME)+"-dst-replicator"' manifests/dst-repl-svc.yaml
         yq e -i '.spec.selector.app = env(VM_NAME)+"-dst-replicator"' manifests/dst-repl-svc.yaml
-        oc wait pod $VM_NAME-dst-replicator -n $NAMESPACE --kubeconfig $DST_KUBECONFIG --for=condition=Ready
+        oc wait pod $VM_NAME-dst-replicator -n $NAMESPACE --kubeconfig $DST_KUBECONFIG --for=condition=Ready --timeout=-1m
         oc apply -n $NAMESPACE --kubeconfig $DST_KUBECONFIG -f manifests/dst-repl-svc.yaml
         src_ssh_key=`oc exec $VM_NAME-src-replicator -ti -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG -- bash -c "cat ~/.ssh/id_rsa.pub"`
         oc exec $VM_NAME-dst-replicator -ti -n $NAMESPACE --kubeconfig $DST_KUBECONFIG -- bash -c "mkdir ~/.ssh; echo '$src_ssh_key' > ~/.ssh/authorized_keys; chmod 600 ~/.ssh/authorized_keys"
@@ -144,16 +144,23 @@ else
         echo "Creating final replication job"
         oc create job --from=cronjob/$VM_NAME-repl-cronjob $VM_NAME-repl-final-job -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG
         echo "Waiting final replication"
-        oc wait job $VM_NAME-repl-final-job -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG --for=condition=complete
+        oc wait job $VM_NAME-repl-final-job -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG --for=condition=complete --timeout=-1m
         echo "Starting destination VM"
         virtctl start $VM_NAME --kubeconfig $DST_KUBECONFIG
         while [[ $( oc get vm $VM_NAME -n $NAMESPACE --kubeconfig $DST_KUBECONFIG --no-headers | awk '{print $3}') != "Running"  ]]
         do
-            echo "$i"
-            i=$[$i +5]
+            printf  "#"
             sleep 5
         done
+        echo "Deleting final replication job"
+        oc delete job $VM_NAME-repl-final-job -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG --wait
         echo "Deleting CronJob"
         oc delete cronjob $VM_NAME-repl-cronjob -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG --wait
+        echo "Deleting source Replicator"
+        oc delete pod $VM_NAME-src-replicator -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG --wait
+        oc delete secret $VM_NAME-repl-ssh-keys -n $NAMESPACE --kubeconfig $SRC_KUBECONFIG --wait
+        echo "Deleting destination Replicator"
+        oc delete pod $VM_NAME-dst-replicator -n $NAMESPACE --kubeconfig $DST_KUBECONFIG --wait
+        oc delete svc $VM_NAME-dst-svc -n $NAMESPACE --kubeconfig $DST_KUBECONFIG --wait
     fi
 fi

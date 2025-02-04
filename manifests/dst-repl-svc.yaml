@@ -2,11 +2,11 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: rhel9-test-9-dst-replicator
-  name: rhel9-test-9-dst-svc
+    app: rhel9-test-17-dst-replicator
+  name: rhel9-test-17-dst-svc
 spec:
   ports:
     - port: 22
   selector:
-    app: rhel9-test-9-dst-replicator
+    app: rhel9-test-17-dst-replicator
   type: NodePort

@@ -2,8 +2,8 @@ apiVersion: v1
 kind: Pod
 metadata:
   labels:
-    app: rhel9-test-9-src-replicator
-  name: rhel9-test-9-src-replicator
+    app: rhel9-test-17-src-replicator
+  name: rhel9-test-17-src-replicator
 spec:
   containers:
     - image: kloiadocker/kubevirt-migrator:0.0.2
@@ -38,4 +38,4 @@ spec:
   volumes:
     - name: rootdisk
       persistentVolumeClaim:
-        claimName: rhel9-test-9
+        claimName: rhel9-test-17

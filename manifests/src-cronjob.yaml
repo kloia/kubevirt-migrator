@@ -1,9 +1,10 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: rhel9-test-8-repl-cronjob
+  name: rhel9-test-17-repl-cronjob
 spec:
   schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
   jobTemplate:
     spec:
       template:
@@ -21,7 +22,7 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - "mkdir /data/dimg /data/dfs /data/sfs/; sshfs -o StrictHostKeyChecking=no -o port=32727 10.1.80.249:/data/simg /data/dimg; guestmount -a /data/simg/disk.img -m /dev/sda4 --ro /data/sfs; guestmount -a /data/dimg/disk.img -m /dev/sda4 --rw /data/dfs; rclone sync --progress /data/sfs/ /data/dfs/ --skip-links"
+                - "mkdir /data/dimg /data/dfs /data/sfs/; sshfs -o StrictHostKeyChecking=no -o port=31681 10.1.80.249:/data/simg /data/dimg; guestmount -a /data/simg/disk.img -m /dev/sda4 --ro /data/sfs; guestmount -a /data/dimg/disk.img -m /dev/sda4 --rw /data/dfs; rclone sync --progress /data/sfs/ /data/dfs/ --skip-links"
               volumeMounts:
                 - mountPath: /data/simg
                   name: rootdisk
@@ -33,8 +34,8 @@ spec:
           volumes:
             - name: rootdisk
               persistentVolumeClaim:
-                claimName: rhel9-test-8
+                claimName: rhel9-test-17
             - name: ssh
               secret:
-                secretName: rhel9-test-8-repl-ssh-keys
+                secretName: rhel9-test-17-repl-ssh-keys
                 defaultMode: 0400
