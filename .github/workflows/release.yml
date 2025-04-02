@@ -36,4 +36,5 @@ jobs:
         with:
           version: latest
           args: release --clean
-          token: ${{ steps.app-token.outputs.token }}
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
