@@ -1,15 +1,182 @@
 # KubeVirt Migrator
 
-KubeVirt Migrator is a tool designed to facilitate the migration of virtual machines between OpenShift clusters using KubeVirt. It provides a streamlined process for VM replication and migration while ensuring data consistency.
+KubeVirt Migrator is a tool designed to facilitate the migration 
+of virtual machines between OpenShift clusters using KubeVirt. 
+It provides a streamlined process for VM replication and 
+migration while ensuring data consistency.
+
+## Overview
+
+KubeVirt Migrator is a command-line tool designed to simplify the process of migrating VMs between KubeVirt clusters. It provides:
+
+- Automatic replication of VM disk contents
+- Preservation of VM configuration
+- Synchronization of data between source and destination
+- Easy-to-use CLI interface
+
+## Installation
+
+### Prerequisites
+
+- Go 1.23 or higher
+- Task (task runner)
+- Docker (for building container images)
+- Access to both source and destination Kubernetes clusters with KubeVirt installed
+- The following tools must be available in PATH:
+  - `oc` or `kubectl`: Kubernetes CLI
+  - `virtctl`: KubeVirt VM management
+  - `yq`: YAML processing
+  - `rclone`: File synchronization
+  - `sshfs`: SSH filesystem mounting
+  - `guestmount`: VM disk image mounting (requires libguestfs-tools)
+
+### Install from GitHub
+
+You can install using Go directly:
+
+```bash
+# Install the latest version
+go install github.com/ugurcancaykara/kubevirt-migrator/cmd/kubevirt-migrator@latest
+
+# Verify installation
+kubevirt-migrator --help
+```
+
+### Build from Source
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/ugurcancaykara/kubevirt-migrator.git
+   cd kubevirt-migrator
+   ```
+
+2. Download dependencies:
+   ```bash
+   task download
+   # or
+   go mod download
+   ```
+
+3. Build the binary:
+   ```bash
+   task build
+   # or for platform-specific builds:
+   
+   # For Linux (amd64)
+   GOOS=linux GOARCH=amd64 go build -o bin/kubevirt-migrator ./cmd/kubevirt-migrator
+   
+   # For macOS (amd64)
+   GOOS=darwin GOARCH=amd64 go build -o bin/kubevirt-migrator ./cmd/kubevirt-migrator
+   
+   # For macOS (Apple Silicon)
+   GOOS=darwin GOARCH=arm64 go build -o bin/kubevirt-migrator ./cmd/kubevirt-migrator
+   ```
+
+4. Build the container images:
+   ```bash
+   task docker
+   # or
+   docker build -t kubevirt-migrator-src -f Dockerfiles/DockerfileReplicator .
+   docker build -t kubevirt-migrator-dst -f Dockerfiles/DockerfileDst .
+   ```
+
+## Usage
+
+KubeVirt Migrator provides two main commands:
+
+### Initialize Migration
+
+The `init` command sets up the migration infrastructure and starts initial replication:
+
+```bash
+kubevirt-migrator init \
+  --vm-name <vm-name> \
+  --namespace <namespace> \
+  --src-kubeconfig <source-kubeconfig> \
+  --dst-kubeconfig <destination-kubeconfig> \
+  [--preserve-pod-ip]
+```
+
+This will:
+1. Create a stopped VM on the destination cluster
+2. Set up replication pods on both clusters
+3. Perform initial disk replication
+4. Configure incremental replication via cronjob
+
+### Perform Migration
+
+The `migrate` command finalizes the migration:
+
+```bash
+kubevirt-migrator migrate \
+  --vm-name <vm-name> \
+  --namespace <namespace> \
+  --src-kubeconfig <source-kubeconfig> \
+  --dst-kubeconfig <destination-kubeconfig>
+```
+
+This will:
+1. Stop the VM on the source cluster
+2. Perform final replication
+3. Start the VM on the destination cluster
+4. Clean up all migration resources
+
+### Task Runner
+
+For convenience, you can also use Task:
+
+```bash
+# Initialize migration
+task init VM_NAME=myvm NAMESPACE=mynamespace SRC_KUBECONFIG=src.kubeconfig DST_KUBECONFIG=dst.kubeconfig
+
+# Perform migration
+task migrate VM_NAME=myvm NAMESPACE=mynamespace SRC_KUBECONFIG=src.kubeconfig DST_KUBECONFIG=dst.kubeconfig
+```
+
+## Configuration
+
+The tool can be configured via:
+
+1. Command-line arguments
+2. Environment variables (prefixed with `KUBEVIRT_MIGRATOR_`)
+
+Available options:
+
+| CLI Flag | Environment Variable | Description |
+|----------|----------------------|-------------|
+| `--vm-name` | `KUBEVIRT_MIGRATOR_VM_NAME` | Name of the virtual machine (required) |
+| `--namespace` | `KUBEVIRT_MIGRATOR_NAMESPACE` | Kubernetes namespace (required) |
+| `--src-kubeconfig` | `KUBEVIRT_MIGRATOR_SRC_KUBECONFIG` | Source cluster kubeconfig (required) |
+| `--dst-kubeconfig` | `KUBEVIRT_MIGRATOR_DST_KUBECONFIG` | Destination cluster kubeconfig (required) |
+| `--preserve-pod-ip` | `KUBEVIRT_MIGRATOR_PRESERVE_POD_IP` | Preserve pod IP address during migration |
+| `--log-level` | `KUBEVIRT_MIGRATOR_LOG_LEVEL` | Logging level (debug, info, warn, error) |
+| `--ssh-port` | `KUBEVIRT_MIGRATOR_SSH_PORT` | SSH port for replication |
+
+## How It Works
+
+1. **Initialization Phase**:
+   - Source VM configuration is exported to the destination cluster
+   - Replicator pods are deployed in both clusters
+   - SSH keys are generated for secure communication
+   - Initial volume replication is performed
+   - A cronjob is set up for continuous replication
+
+2. **Migration Phase**:
+   - Final replication is performed using the cronjob
+   - Source VM is stopped
+   - Destination VM is started
+   - All migration resources are cleaned up
 
 ## Features
-
     - Warm migration of VMs between OpenShift clusters
     - Automated handling of VM states during migration
     - Secure replication
     - Progress monitoring and status checking
     - Configurable replication schedules
     - Automatic validation of cluster configurations
+
+## License
+MIT License
 
 ## Prerequisites
 

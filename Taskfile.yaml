@@ -1,0 +1,67 @@
+version: '3'
+
+tasks:
+  download:
+    desc: Download dependencies
+    cmds:
+      - go mod download
+
+  lint:
+    desc: Run linter
+    cmds:
+      - golangci-lint run
+
+  build:
+    desc: Build the binary for local development
+    cmds:
+      - goreleaser build --snapshot --single-target --clean
+      - cp dist/kubevirt-migrator_*/* bin/kubevirt-migrator
+
+  build-all:
+    desc: Build for all platforms using GoReleaser
+    cmds:
+      - goreleaser build --snapshot --clean
+      - mkdir -p bin
+      - cp dist/kubevirt-migrator_linux_amd64_v1/kubevirt-migrator bin/kubevirt-migrator-linux-amd64
+      - cp dist/kubevirt-migrator_linux_arm64_v8.0/kubevirt-migrator bin/kubevirt-migrator-linux-arm64
+      - cp dist/kubevirt-migrator_darwin_amd64_v1/kubevirt-migrator bin/kubevirt-migrator-darwin-amd64
+      - cp dist/kubevirt-migrator_darwin_arm64_v8.0/kubevirt-migrator bin/kubevirt-migrator-darwin-arm64
+
+  docker-src:
+    desc: Build source replicator Docker image
+    cmds:
+      - docker build -t kubevirt-migrator-src:latest -f Dockerfiles/DockerfileReplicator .
+
+  docker-dst:
+    desc: Build destination replicator Docker image
+    cmds:
+      - docker build -t kubevirt-migrator-dst:latest -f Dockerfiles/DockerfileDst .
+
+  docker:
+    desc: Build both Docker images
+    deps: [docker-src, docker-dst]
+
+  release-local:
+    desc: Create a local release build with all artifacts
+    cmds:
+      - goreleaser release --snapshot --clean
+
+  release-dry-run:
+    desc: Test the release process without publishing
+    cmds:
+      - goreleaser release --snapshot --skip-publish --clean
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test -v ./...
+
+  init:
+    desc: Run initialization
+    cmds:
+      - ./bin/kubevirt-migrator init --vm-name {{.VM_NAME}} --namespace {{.NAMESPACE}} --src-kubeconfig {{.SRC_KUBECONFIG}} --dst-kubeconfig {{.DST_KUBECONFIG}}
+
+  migrate:
+    desc: Run migration
+    cmds:
+      - ./bin/kubevirt-migrator migrate --vm-name {{.VM_NAME}} --namespace {{.NAMESPACE}} --src-kubeconfig {{.SRC_KUBECONFIG}} --dst-kubeconfig {{.DST_KUBECONFIG}} 

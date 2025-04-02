@@ -1,0 +1,47 @@
+project_name: kubevirt-migrator
+
+builds:
+  - id: kubevirt-migrator
+    main: ./cmd/kubevirt-migrator
+    binary: kubevirt-migrator
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/kloia/kubevirt-migrator/internal/version.Version={{.Version}} -X github.com/kloia/kubevirt-migrator/internal/version.Commit={{.Commit}} -X github.com/kloia/kubevirt-migrator/internal/version.Date={{.Date}}
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+    files:
+      - README.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: kloia
+    name: kubevirt-migrator
+  prerelease: auto
+  draft: false 
