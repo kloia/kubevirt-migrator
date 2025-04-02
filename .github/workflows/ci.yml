@@ -18,12 +18,16 @@ jobs:
           app-id: ${{ secrets.KUBEVIRT_MIGRATOR_APP_ID }}
           private-key: ${{ secrets.KUBEVIRT_MIGRATOR_APP_PRIVATE_KEY }}
 
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.21
-          cache: true
+          go-version: 1.23
+          cache: false # Disable cache until go.sum exists
 
       - name: Install golangci-lint
         run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2
@@ -43,11 +47,16 @@ jobs:
           app-id: ${{ secrets.KUBEVIRT_MIGRATOR_APP_ID }}
           private-key: ${{ secrets.KUBEVIRT_MIGRATOR_APP_PRIVATE_KEY }}
 
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.21
-          cache: true
+          go-version: 1.23
+          cache: false # Disable cache until go.sum exists
 
       - name: Build
         run: |

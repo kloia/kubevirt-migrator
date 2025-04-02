@@ -19,10 +19,17 @@ jobs:
           app-id: ${{ secrets.KUBEVIRT_MIGRATOR_APP_ID }}
           private-key: ${{ secrets.KUBEVIRT_MIGRATOR_APP_PRIVATE_KEY }}
 
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
           go-version: 1.23
+          cache: false # Disable cache until go.sum exists
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
