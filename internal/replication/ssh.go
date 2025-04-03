@@ -29,7 +29,7 @@ func (s *SSHManager) GenerateKeys(cfg *config.Config) error {
 	podName := fmt.Sprintf("%s-src-replicator", cfg.VMName)
 
 	// Generate SSH keys
-	_, err := s.executor.Execute("oc", "exec", podName, "-n", cfg.Namespace, "--kubeconfig", cfg.SrcKubeconfig,
+	_, err := s.executor.Execute(cfg.KubeCLI, "exec", podName, "-n", cfg.Namespace, "--kubeconfig", cfg.SrcKubeconfig,
 		"--", "bash", "-c", "ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa")
 	if err != nil {
 		return fmt.Errorf("failed to generate SSH keys: %w", err)
@@ -39,14 +39,14 @@ func (s *SSHManager) GenerateKeys(cfg *config.Config) error {
 	s.logger.Info("Copying SSH keys to create secret")
 
 	// Get private key
-	privateKey, err := s.executor.Execute("oc", "exec", podName, "-n", cfg.Namespace, "--kubeconfig", cfg.SrcKubeconfig,
+	privateKey, err := s.executor.Execute(cfg.KubeCLI, "exec", podName, "-n", cfg.Namespace, "--kubeconfig", cfg.SrcKubeconfig,
 		"--", "cat", "/root/.ssh/id_rsa")
 	if err != nil {
 		return fmt.Errorf("failed to get private key: %w", err)
 	}
 
 	// Get public key
-	publicKey, err := s.executor.Execute("oc", "exec", podName, "-n", cfg.Namespace, "--kubeconfig", cfg.SrcKubeconfig,
+	publicKey, err := s.executor.Execute(cfg.KubeCLI, "exec", podName, "-n", cfg.Namespace, "--kubeconfig", cfg.SrcKubeconfig,
 		"--", "cat", "/root/.ssh/id_rsa.pub")
 	if err != nil {
 		return fmt.Errorf("failed to get public key: %w", err)
@@ -66,7 +66,7 @@ func (s *SSHManager) GenerateKeys(cfg *config.Config) error {
 
 	// Create secret
 	secretName := fmt.Sprintf("%s-repl-ssh-keys", cfg.VMName)
-	_, err = s.executor.Execute("oc", "create", "secret", "generic", secretName,
+	_, err = s.executor.Execute(cfg.KubeCLI, "create", "secret", "generic", secretName,
 		"--from-file=id_rsa="+privateKeyFile,
 		"--from-file=id_rsa.pub="+publicKeyFile,
 		"-n", cfg.Namespace,
@@ -84,14 +84,14 @@ func (s *SSHManager) SetupDestinationAuth(cfg *config.Config) error {
 	dstPodName := fmt.Sprintf("%s-dst-replicator", cfg.VMName)
 
 	// Get public key from source pod
-	publicKey, err := s.executor.Execute("oc", "exec", srcPodName, "-n", cfg.Namespace, "--kubeconfig", cfg.SrcKubeconfig,
+	publicKey, err := s.executor.Execute(cfg.KubeCLI, "exec", srcPodName, "-n", cfg.Namespace, "--kubeconfig", cfg.SrcKubeconfig,
 		"--", "cat", "/root/.ssh/id_rsa.pub")
 	if err != nil {
 		return fmt.Errorf("failed to get public key: %w", err)
 	}
 
 	// Set up SSH auth on destination pod
-	_, err = s.executor.Execute("oc", "exec", dstPodName, "-n", cfg.Namespace, "--kubeconfig", cfg.DstKubeconfig,
+	_, err = s.executor.Execute(cfg.KubeCLI, "exec", dstPodName, "-n", cfg.Namespace, "--kubeconfig", cfg.DstKubeconfig,
 		"--", "bash", "-c", fmt.Sprintf("mkdir -p ~/.ssh && echo '%s' > ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys", publicKey))
 	if err != nil {
 		return fmt.Errorf("failed to set up SSH auth on destination: %w", err)

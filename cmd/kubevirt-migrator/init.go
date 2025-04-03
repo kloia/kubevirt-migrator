@@ -2,14 +2,20 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/kloia/kubevirt-migrator/internal/config"
 	"github.com/kloia/kubevirt-migrator/internal/executor"
+	"github.com/kloia/kubevirt-migrator/internal/kubernetes"
 	"github.com/kloia/kubevirt-migrator/internal/replication"
+	"github.com/kloia/kubevirt-migrator/internal/sync"
 	"github.com/kloia/kubevirt-migrator/internal/template"
 )
 
@@ -19,7 +25,7 @@ func newInitCmd(logger *zap.Logger) *cobra.Command {
 		Short: "Initialize VM migration",
 		Long:  `Sets up VM migration infrastructure and starts initial replication.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInit(logger)
+			return runInit(cmd, logger)
 		},
 	}
 
@@ -30,6 +36,10 @@ func newInitCmd(logger *zap.Logger) *cobra.Command {
 	cmd.Flags().String("dst-kubeconfig", "", "Destination cluster kubeconfig file (required)")
 	cmd.Flags().Bool("preserve-pod-ip", false, "Preserve pod IP address during migration")
 	cmd.Flags().Int("ssh-port", 22, "SSH port for replication")
+
+	// Add the new kubecli and sync-tool flags
+	cmd.Flags().String("kubecli", "oc", "Kubernetes CLI to use (oc, kubectl)")
+	cmd.Flags().String("sync-tool", "rclone", "Synchronization tool to use (rclone, rsync)")
 
 	// Mark required flags
 	if err := cmd.MarkFlagRequired("vm-name"); err != nil {
@@ -64,40 +74,71 @@ func newInitCmd(logger *zap.Logger) *cobra.Command {
 	if err := viper.BindPFlag("ssh-port", cmd.Flags().Lookup("ssh-port")); err != nil {
 		logger.Error("Failed to bind flag", zap.String("flag", "ssh-port"), zap.Error(err))
 	}
+	if err := viper.BindPFlag("kubecli", cmd.Flags().Lookup("kubecli")); err != nil {
+		logger.Error("Failed to bind flag", zap.String("flag", "kubecli"), zap.Error(err))
+	}
+	if err := viper.BindPFlag("sync-tool", cmd.Flags().Lookup("sync-tool")); err != nil {
+		logger.Error("Failed to bind flag", zap.String("flag", "sync-tool"), zap.Error(err))
+	}
 
 	return cmd
 }
 
-func runInit(logger *zap.Logger) error {
-	// Load configuration
-	cfg, err := config.LoadConfig()
+func runInit(cmd *cobra.Command, logger *zap.Logger) error {
+	// Parse config from command flags
+	cfg, err := config.ParseInitConfig(cmd)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+		return fmt.Errorf("failed to parse configuration: %w", err)
 	}
 
 	logger.Info("Initializing migration",
 		zap.String("vm", cfg.VMName),
-		zap.String("namespace", cfg.Namespace))
+		zap.String("namespace", cfg.Namespace),
+		zap.String("kubecli", cfg.KubeCLI),
+		zap.String("sync-tool", cfg.SyncTool))
 
-	// Create executor
+	// Create command executor
 	exec := executor.NewShellExecutor(logger)
 
-	// Create template manager
-	tmplMgr := template.NewManager(exec, logger)
+	// Create sync tool
+	syncTool, err := sync.NewSyncCommand(sync.SyncTool(cfg.SyncTool))
+	if err != nil {
+		return fmt.Errorf("error creating sync tool: %w", err)
+	}
+
+	// Create template manager with the appropriate kubeCLI
+	tmplMgr := template.NewManager(exec, logger, cfg.KubeCLI)
+
+	// Create client factory
+	clientFactory := kubernetes.NewClientFactory(exec, syncTool, logger)
+
+	// Create source and destination clients
+	srcClient, err := clientFactory.CreateClient(kubernetes.ClientType(cfg.KubeCLI), cfg.SrcKubeconfig)
+	if err != nil {
+		return fmt.Errorf("error creating source client: %w", err)
+	}
+
+	dstClient, err := clientFactory.CreateClient(kubernetes.ClientType(cfg.KubeCLI), cfg.DstKubeconfig)
+	if err != nil {
+		return fmt.Errorf("error creating destination client: %w", err)
+	}
 
 	// Create SSH manager
 	sshMgr := replication.NewSSHManager(exec, logger)
 
 	// Create sync manager
 	syncMgr := replication.NewSyncManager(exec, logger, sshMgr, tmplMgr)
+	syncMgr.SetSyncTool(syncTool)
 
 	// Check VM status
-	if err := checkVMStatus(exec, cfg, logger); err != nil {
-		return err
+	vmStatus, err := srcClient.GetVMStatus(cfg.VMName, cfg.Namespace)
+	if err != nil {
+		return fmt.Errorf("failed to get VM status: %w", err)
 	}
+	logger.Info("Source VM status", zap.String("status", vmStatus))
 
 	// Create destination VM if needed
-	if err := createDestVM(exec, cfg, logger); err != nil {
+	if err := createDestVM(srcClient, dstClient, cfg, logger); err != nil {
 		return err
 	}
 
@@ -121,12 +162,12 @@ func runInit(logger *zap.Logger) error {
 		return err
 	}
 
-	// Perform initial sync
+	// Perform initial sync with appropriate sync tool
 	if err := syncMgr.PerformInitialSync(cfg); err != nil {
 		return err
 	}
 
-	// Setup CronJob for async replication
+	// Setup CronJob for async replication using the SyncManager
 	if err := syncMgr.SetupCronJob(cfg); err != nil {
 		return err
 	}
@@ -135,30 +176,9 @@ func runInit(logger *zap.Logger) error {
 	return nil
 }
 
-func checkVMStatus(exec executor.CommandExecutor, cfg *config.Config, logger *zap.Logger) error {
-	logger.Info("Checking VM status")
-
-	// Source VM
-	srcVM, err := exec.Execute("oc", "get", "vm", cfg.VMName, "-n", cfg.Namespace, "--kubeconfig", cfg.SrcKubeconfig, "--no-headers")
-	if err != nil {
-		return fmt.Errorf("failed to get source VM: %w", err)
-	}
-	logger.Info("Source VM status", zap.String("status", srcVM))
-
-	// Destination VM
-	dstOutput, dstErr := exec.Execute("oc", "get", "vm", cfg.VMName, "-n", cfg.Namespace, "--kubeconfig", cfg.DstKubeconfig, "--no-headers")
-	if dstErr != nil {
-		logger.Info("Destination VM not found, it will be created", zap.Error(dstErr))
-	} else {
-		logger.Info("Destination VM found", zap.String("vm", dstOutput))
-	}
-
-	return nil
-}
-
-func createDestVM(exec executor.CommandExecutor, cfg *config.Config, logger *zap.Logger) error {
+func createDestVM(srcClient, dstClient kubernetes.KubernetesClient, cfg *config.Config, logger *zap.Logger) error {
 	// Check if VM already exists
-	_, err := exec.Execute("oc", "get", "vm", cfg.VMName, "-n", cfg.Namespace, "--kubeconfig", cfg.DstKubeconfig, "--no-headers")
+	_, err := dstClient.GetVMStatus(cfg.VMName, cfg.Namespace)
 	if err == nil {
 		logger.Info("Destination VM already exists")
 		return nil
@@ -166,113 +186,128 @@ func createDestVM(exec executor.CommandExecutor, cfg *config.Config, logger *zap
 
 	logger.Info("Creating destination VM")
 
-	// Export VM
-	tmpFile := fmt.Sprintf("/tmp/%s-vm.yaml", cfg.VMName)
-	_, err = exec.Execute("oc", "get", "vm", cfg.VMName, "-n", cfg.Namespace, "--kubeconfig", cfg.SrcKubeconfig, "-o", "yaml", ">", tmpFile)
+	// Export VM from source with or without IP preservation
+	var vmDef []byte
+	if cfg.PreservePodIP {
+		logger.Info("Using IP preservation for VM migration")
+		vmDef, err = srcClient.ExportVMWithPreservedIP(cfg.VMName, cfg.Namespace)
+	} else {
+		// Get regular VM definition and ensure it's stopped
+		vmDef, err = srcClient.ExportVM(cfg.VMName, cfg.Namespace)
+
+		if err == nil {
+			// Ensure VM is stopped by setting running=false
+			tmpFile := "/tmp/vm-def.yaml"
+			if err := os.WriteFile(tmpFile, vmDef, 0600); err != nil {
+				return fmt.Errorf("failed to write VM definition to file: %w", err)
+			}
+
+			exec := executor.NewShellExecutor(logger)
+			_, err = exec.Execute("yq", "e", "-i", ".spec.running = false", tmpFile)
+			if err != nil {
+				if removeErr := os.Remove(tmpFile); removeErr != nil {
+					logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(removeErr))
+				}
+				return fmt.Errorf("failed to update VM definition to stopped state: %w", err)
+			}
+
+			// Read back the modified definition
+			vmDef, err = os.ReadFile(tmpFile)
+			if err != nil {
+				if removeErr := os.Remove(tmpFile); removeErr != nil {
+					logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(removeErr))
+				}
+				return fmt.Errorf("failed to read modified VM definition: %w", err)
+			}
+
+			// Clean up temp file
+			if err := os.Remove(tmpFile); err != nil {
+				logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(err))
+			}
+		}
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to export VM: %w", err)
 	}
 
-	// Update spec.running to false
-	_, err = exec.Execute("yq", "e", "-i", ".spec.running = false", tmpFile)
-	if err != nil {
-		return fmt.Errorf("failed to update VM spec: %w", err)
+	// Import VM to destination
+	if err := dstClient.ImportVM(vmDef, cfg.Namespace); err != nil {
+		return fmt.Errorf("failed to import VM: %w", err)
 	}
 
-	// Handle IP preservation if requested
-	if cfg.PreservePodIP {
-		logger.Info("Preserving pod IP address")
-
-		// Get pod IP
-		podIP, err := exec.Execute("oc", "get", "vmi", cfg.VMName, "-n", cfg.Namespace, "--kubeconfig", cfg.SrcKubeconfig,
-			"-o=jsonpath='{.status.interfaces[0].ipAddress}'")
-		if err != nil {
-			return fmt.Errorf("failed to get pod IP: %w", err)
-		}
-
-		// Get MAC
-		podMAC, err := exec.Execute("oc", "get", "vmi", cfg.VMName, "-n", cfg.Namespace, "--kubeconfig", cfg.SrcKubeconfig,
-			"-o=jsonpath='{.status.interfaces[0].mac}'")
-		if err != nil {
-			return fmt.Errorf("failed to get pod MAC: %w", err)
-		}
-
-		// Create annotation with IP and MAC
-		ipJSON := fmt.Sprintf(`'{"default":{"ip_address":"%s/23","mac_address":"%s"}}'`, podIP, podMAC)
-		_, err = exec.Execute("yq", "e", "-i", fmt.Sprintf(".spec.template.metadata.annotations[\"k8s.ovn.org/pod-networks\"] = %s", ipJSON), tmpFile)
-		if err != nil {
-			return fmt.Errorf("failed to set IP annotation: %w", err)
-		}
-	}
-
-	// Apply to destination
-	_, err = exec.Execute("oc", "apply", "--wait", "-n", cfg.Namespace, "--kubeconfig", cfg.DstKubeconfig, "-f", tmpFile)
-	if err != nil {
-		return fmt.Errorf("failed to create destination VM: %w", err)
+	// Wait for destination VM to reach "Stopped" status
+	logger.Info("Waiting for destination VM to be ready")
+	if err := dstClient.WaitForVMStatus(cfg.VMName, cfg.Namespace, "Stopped", 5*time.Minute); err != nil {
+		return fmt.Errorf("error waiting for destination VM to be ready: %w", err)
 	}
 
 	logger.Info("Destination VM created")
 	return nil
 }
 
-func createSourceReplicator(tmplMgr *template.Manager, cfg *config.Config, logger *zap.Logger) error {
+// createPodAndWait creates a pod from a template and waits for it to be ready
+func createPodAndWait(tmplMgr *template.Manager, cfg *config.Config, logger *zap.Logger, isSource bool, templateKind template.TemplateKind, templateVars template.TemplateVariables) error {
+	// Set source/destination variables
+	podSuffix := "src"
+	kubeconfig := cfg.SrcKubeconfig
+	if !isSource {
+		podSuffix = "dst"
+		kubeconfig = cfg.DstKubeconfig
+	}
+
+	podName := fmt.Sprintf("%s-%s-replicator", cfg.VMName, podSuffix)
+
+	// Initialize a title caser
+	caser := cases.Title(language.English)
+
 	// Check if replicator already exists
 	exec := executor.NewShellExecutor(logger)
-	_, err := exec.Execute("oc", "get", "pod", fmt.Sprintf("%s-src-replicator", cfg.VMName), "-n", cfg.Namespace, "--kubeconfig", cfg.SrcKubeconfig, "--no-headers")
+	_, err := exec.Execute(cfg.KubeCLI, "get", "pod", podName, "-n", cfg.Namespace,
+		"--kubeconfig", kubeconfig, "--no-headers")
 	if err == nil {
-		logger.Info("Source replicator already exists")
+		logger.Info(fmt.Sprintf("%s replicator already exists", caser.String(podSuffix)))
 		return nil
 	}
 
-	logger.Info("Creating source replicator")
+	logger.Info(fmt.Sprintf("Creating %s replicator", podSuffix))
 
-	err = tmplMgr.RenderAndApply(template.SourceReplicator, template.TemplateVariables{
-		VMName:    cfg.VMName,
-		Namespace: cfg.Namespace,
-	}, cfg.SrcKubeconfig)
+	// Apply template
+	err = tmplMgr.RenderAndApply(templateKind, templateVars, kubeconfig)
 	if err != nil {
-		return fmt.Errorf("failed to create source replicator: %w", err)
+		return fmt.Errorf("failed to create %s replicator: %w", podSuffix, err)
 	}
 
 	// Wait for pod to be ready
-	_, err = exec.Execute("oc", "wait", "pod", fmt.Sprintf("%s-src-replicator", cfg.VMName), "-n", cfg.Namespace,
-		"--kubeconfig", cfg.SrcKubeconfig, "--for=condition=Ready", "--timeout=-1m")
+	_, err = exec.Execute(cfg.KubeCLI, "wait", "pod", podName, "-n", cfg.Namespace,
+		"--kubeconfig", kubeconfig, "--for=condition=Ready", "--timeout=-1m")
 	if err != nil {
-		return fmt.Errorf("failed waiting for source replicator to be ready: %w", err)
+		return fmt.Errorf("failed waiting for %s replicator to be ready: %w", podSuffix, err)
 	}
 
-	logger.Info("Source replicator created")
+	logger.Info(fmt.Sprintf("%s replicator created", caser.String(podSuffix)))
 	return nil
 }
 
-func createDestReplicator(tmplMgr *template.Manager, cfg *config.Config, logger *zap.Logger) error {
-	// Check if replicator already exists
-	exec := executor.NewShellExecutor(logger)
-	_, err := exec.Execute("oc", "get", "pod", fmt.Sprintf("%s-dst-replicator", cfg.VMName), "-n", cfg.Namespace, "--kubeconfig", cfg.DstKubeconfig, "--no-headers")
-	if err == nil {
-		logger.Info("Destination replicator already exists")
-		return nil
-	}
-
-	logger.Info("Creating destination replicator")
-
-	// Create replicator pod
-	err = tmplMgr.RenderAndApply(template.DestReplicator, template.TemplateVariables{
+func createSourceReplicator(tmplMgr *template.Manager, cfg *config.Config, logger *zap.Logger) error {
+	return createPodAndWait(tmplMgr, cfg, logger, true, template.SourceReplicator, template.TemplateVariables{
 		VMName:    cfg.VMName,
 		Namespace: cfg.Namespace,
-	}, cfg.DstKubeconfig)
-	if err != nil {
-		return fmt.Errorf("failed to create destination replicator: %w", err)
-	}
+	})
+}
 
-	// Wait for pod to be ready
-	_, err = exec.Execute("oc", "wait", "pod", fmt.Sprintf("%s-dst-replicator", cfg.VMName), "-n", cfg.Namespace,
-		"--kubeconfig", cfg.DstKubeconfig, "--for=condition=Ready", "--timeout=-1m")
+func createDestReplicator(tmplMgr *template.Manager, cfg *config.Config, logger *zap.Logger) error {
+	// First create replicator pod
+	err := createPodAndWait(tmplMgr, cfg, logger, false, template.DestReplicator, template.TemplateVariables{
+		VMName:    cfg.VMName,
+		Namespace: cfg.Namespace,
+	})
 	if err != nil {
-		return fmt.Errorf("failed waiting for destination replicator to be ready: %w", err)
+		return err
 	}
 
 	// Create service
+	logger.Info("Creating destination service")
 	err = tmplMgr.RenderAndApply(template.DestService, template.TemplateVariables{
 		VMName:     cfg.VMName,
 		Namespace:  cfg.Namespace,
@@ -283,6 +318,5 @@ func createDestReplicator(tmplMgr *template.Manager, cfg *config.Config, logger 
 		return fmt.Errorf("failed to create destination service: %w", err)
 	}
 
-	logger.Info("Destination replicator created")
 	return nil
 }

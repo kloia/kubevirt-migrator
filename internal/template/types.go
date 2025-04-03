@@ -28,4 +28,6 @@ type TemplateVariables struct {
 	Schedule string
 	// ReplicationCommand is the command for replication
 	ReplicationCommand string
+	// SyncTool is the replication tool to use (rclone, rsync)
+	SyncTool string
 }

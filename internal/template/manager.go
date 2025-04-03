@@ -17,14 +17,20 @@ type Manager struct {
 	executor executor.CommandExecutor
 	logger   *zap.Logger
 	tempDir  string
+	kubeCLI  string
 }
 
 // NewManager creates a new template manager
-func NewManager(executor executor.CommandExecutor, logger *zap.Logger) *Manager {
+func NewManager(executor executor.CommandExecutor, logger *zap.Logger, kubeCLI string) *Manager {
+	if kubeCLI == "" {
+		kubeCLI = "oc"
+	}
+
 	return &Manager{
 		executor: executor,
 		logger:   logger,
 		tempDir:  os.TempDir(),
+		kubeCLI:  kubeCLI,
 	}
 }
 
@@ -72,6 +78,11 @@ func (m *Manager) RenderAndApply(kind TemplateKind, vars TemplateVariables, kube
 	return m.applyToCluster(tmpFile, vars.Namespace, kubeconfig)
 }
 
+// SetKubeCLI sets the kubernetes CLI tool to use
+func (m *Manager) SetKubeCLI(kubeCLI string) {
+	m.kubeCLI = kubeCLI
+}
+
 // replaceVariables replaces all template variables in content
 func (m *Manager) replaceVariables(content string, vars TemplateVariables) string {
 	replacements := map[string]string{
@@ -81,6 +92,7 @@ func (m *Manager) replaceVariables(content string, vars TemplateVariables) strin
 		"${TARGET_PORT}":         fmt.Sprintf("%d", vars.TargetPort),
 		"${SCHEDULE}":            vars.Schedule,
 		"${REPLICATION_COMMAND}": vars.ReplicationCommand,
+		"${SYNC_TOOL}":           vars.SyncTool,
 	}
 
 	for k, v := range replacements {
@@ -100,7 +112,7 @@ func (m *Manager) createTempFile(content string) (string, error) {
 
 // applyToCluster applies the file to the Kubernetes cluster
 func (m *Manager) applyToCluster(file, namespace, kubeconfig string) error {
-	_, err := m.executor.Execute("oc", "apply", "-f", file, "-n", namespace, "--kubeconfig", kubeconfig)
+	_, err := m.executor.Execute(m.kubeCLI, "apply", "-f", file, "-n", namespace, "--kubeconfig", kubeconfig)
 	if err != nil {
 		return fmt.Errorf("failed to apply template: %w", err)
 	}
