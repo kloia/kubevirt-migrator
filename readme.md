@@ -5,30 +5,27 @@ of virtual machines between OpenShift clusters using KubeVirt.
 It provides a streamlined process for VM replication and 
 migration while ensuring data consistency.
 
-## Overview
+## Features
 
-KubeVirt Migrator is a command-line tool designed to simplify the process of migrating VMs between KubeVirt clusters. It provides:
-
-- Automatic replication of VM disk contents
-- Preservation of VM configuration
-- Synchronization of data between source and destination
-- Easy-to-use CLI interface
+    - Warm migration of VMs between OpenShift clusters
+    - Automated handling of VM states during migration
+    - Secure replication
+    - Progress monitoring and status checking
+    - Configurable replication schedules
+    - Automatic validation of cluster configurations
 
 ## Installation
 
-### Prerequisites
-
-- Go 1.23 or higher
-- Task (task runner)
-- Docker (for building container images)
-- Access to both source and destination Kubernetes clusters with KubeVirt installed
-- The following tools must be available in PATH:
-  - `oc` or `kubectl`: Kubernetes CLI
-  - `virtctl`: KubeVirt VM management
-  - `yq`: YAML processing
+### Dependencies
+- Docker (for building container images which installs dependencies for migration operations)
   - `rclone`: File synchronization
   - `sshfs`: SSH filesystem mounting
   - `guestmount`: VM disk image mounting (requires libguestfs-tools)
+- Access to both source and destination Kubernetes clusters with KubeVirt installed
+- **The following tools must be available in PATH:**
+  - `oc` or `kubectl`: Kubernetes CLI
+  - `virtctl`: KubeVirt VM management
+  - `yq`: YAML processing
 
 ### Install from GitHub
 
@@ -121,18 +118,6 @@ This will:
 3. Start the VM on the destination cluster
 4. Clean up all migration resources
 
-### Task Runner
-
-For convenience, you can also use Task:
-
-```bash
-# Initialize migration
-task init VM_NAME=myvm NAMESPACE=mynamespace SRC_KUBECONFIG=src.kubeconfig DST_KUBECONFIG=dst.kubeconfig
-
-# Perform migration
-task migrate VM_NAME=myvm NAMESPACE=mynamespace SRC_KUBECONFIG=src.kubeconfig DST_KUBECONFIG=dst.kubeconfig
-```
-
 ## Configuration
 
 The tool can be configured via:
@@ -152,38 +137,11 @@ Available options:
 | `--log-level` | `KUBEVIRT_MIGRATOR_LOG_LEVEL` | Logging level (debug, info, warn, error) |
 | `--ssh-port` | `KUBEVIRT_MIGRATOR_SSH_PORT` | SSH port for replication |
 
-## How It Works
-
-1. **Initialization Phase**:
-   - Source VM configuration is exported to the destination cluster
-   - Replicator pods are deployed in both clusters
-   - SSH keys are generated for secure communication
-   - Initial volume replication is performed
-   - A cronjob is set up for continuous replication
-
-2. **Migration Phase**:
-   - Final replication is performed using the cronjob
-   - Source VM is stopped
-   - Destination VM is started
-   - All migration resources are cleaned up
-
-## Features
-    - Warm migration of VMs between OpenShift clusters
-    - Automated handling of VM states during migration
-    - Secure replication
-    - Progress monitoring and status checking
-    - Configurable replication schedules
-    - Automatic validation of cluster configurations
-
-## License
-MIT License
-
-## Prerequisites
+## Installation of dependencies
 
 ### Platform Requirements
 - OpenShift 4.x or higher
 - KubeVirt v0.54.0 or higher
-
 
 ### CLI Tools
 1. **oc** (OpenShift CLI)
@@ -247,94 +205,27 @@ rules:
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ```
 
-# Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/kubevirt-migrator.git
-cd kubevirt-migrator
-```
-
-
-Make the scripts executable:
-```bash
-chmod +x migrate.sh init.sh
-```
-# Usage
-
-Use the init script to initialize the replication:
-```bash
-./init.sh \
-  --vm-name <vm-name> \
-  --namespace <namespace> \
-  --src-kubeconfig <source-kubeconfig-path> \
-  --dst-kubeconfig <destination-kubeconfig-path> \
-  [--verbose]
-
-```
-
-Execute the migration script to migrate VM from source to destination OpenShift cluster:
-```bash
-./migrate.sh \
-  --vm-name <vm-name> \
-  --namespace <namespace> \
-  --src-kubeconfig <source-kubeconfig-path> \
-  --dst-kubeconfig <destination-kubeconfig-path>
-```
-
-## Command Line Arguments
-
-    --vm-name: Name of the virtual machine to migrate
-
-    --namespace: Kubernetes namespace containing the VM
-
-    --src-kubeconfig: Path to source cluster's kubeconfig file
-
-    --dst-kubeconfig: Path to destination cluster's kubeconfig file
-
-    --verbose: Enable detailed logging (optional)
-
-    --help: Display usage information
 
 ## Migration Process
-### Replication Initialization
 
-    - Validates environment and prerequisites
+### How It Works
 
-    - Checks VM status in both clusters
+1. **Initialization Phase(Replication initialization)**:
+   - Validates environment and prerequisites
+   - Checks VM status in both clusters
+   - Sets up replication components
+   - Replication Setup
+   - Creates source and destination replicators
+   - Establishes secure connection between clusters
 
-    - Sets up replication components
+2. **Migration Phase**:
+   - Final replication is performed using the cronjob
+   - Source VM is stopped
+   - Destination VM is started
+   - Validates successful migration
+   - All migration resources are cleaned up
 
-    - Replication Setup
-
-    - Creates source and destination replicators
-
-    - Establishes secure connection between clusters
-
-### Migration
-
-    - Stops the source VM
-
-    - Performs final data synchronization
-
-    - Starts the VM in destination cluster
-
-    - Validates successful migration
-
-## Directory Structure
-```bash
-kubevirt-migrator/
-├── migrate.sh           # Main migration script
-├── init.sh             # Initialization script
-├── manifests/          # Kubernetes manifest templates
-│   ├── src-repl.yaml   # Source replicator configuration
-│   ├── dst-repl.yaml   # Destination replicator configuration
-│   └── dst-repl-svc.yaml # Destination service configuration
-│   └── src-cronjob.yaml # Source default cronjob configuration
-└── README.md           # This file
-```
-
-## Troubleshooting
+## Troubleshooting
 ### Common issues and solutions:
 
 #### VM Status Check Fails
@@ -370,3 +261,7 @@ kubevirt-migrator/
 
     - VM must use supported disk formats
 
+
+
+## License
+MIT License

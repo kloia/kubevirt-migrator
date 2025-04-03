@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
 	"github.com/kloia/kubevirt-migrator/internal/config"
@@ -20,6 +21,48 @@ func newInitCmd(logger *zap.Logger) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runInit(logger)
 		},
+	}
+
+	// Add command-specific flags
+	cmd.Flags().String("vm-name", "", "Name of the virtual machine (required)")
+	cmd.Flags().String("namespace", "", "Kubernetes namespace (required)")
+	cmd.Flags().String("src-kubeconfig", "", "Source cluster kubeconfig file (required)")
+	cmd.Flags().String("dst-kubeconfig", "", "Destination cluster kubeconfig file (required)")
+	cmd.Flags().Bool("preserve-pod-ip", false, "Preserve pod IP address during migration")
+	cmd.Flags().Int("ssh-port", 22, "SSH port for replication")
+
+	// Mark required flags
+	if err := cmd.MarkFlagRequired("vm-name"); err != nil {
+		logger.Error("Failed to mark flag as required", zap.String("flag", "vm-name"), zap.Error(err))
+	}
+	if err := cmd.MarkFlagRequired("namespace"); err != nil {
+		logger.Error("Failed to mark flag as required", zap.String("flag", "namespace"), zap.Error(err))
+	}
+	if err := cmd.MarkFlagRequired("src-kubeconfig"); err != nil {
+		logger.Error("Failed to mark flag as required", zap.String("flag", "src-kubeconfig"), zap.Error(err))
+	}
+	if err := cmd.MarkFlagRequired("dst-kubeconfig"); err != nil {
+		logger.Error("Failed to mark flag as required", zap.String("flag", "dst-kubeconfig"), zap.Error(err))
+	}
+
+	// Bind flags to viper
+	if err := viper.BindPFlag("vm-name", cmd.Flags().Lookup("vm-name")); err != nil {
+		logger.Error("Failed to bind flag", zap.String("flag", "vm-name"), zap.Error(err))
+	}
+	if err := viper.BindPFlag("namespace", cmd.Flags().Lookup("namespace")); err != nil {
+		logger.Error("Failed to bind flag", zap.String("flag", "namespace"), zap.Error(err))
+	}
+	if err := viper.BindPFlag("src-kubeconfig", cmd.Flags().Lookup("src-kubeconfig")); err != nil {
+		logger.Error("Failed to bind flag", zap.String("flag", "src-kubeconfig"), zap.Error(err))
+	}
+	if err := viper.BindPFlag("dst-kubeconfig", cmd.Flags().Lookup("dst-kubeconfig")); err != nil {
+		logger.Error("Failed to bind flag", zap.String("flag", "dst-kubeconfig"), zap.Error(err))
+	}
+	if err := viper.BindPFlag("preserve-pod-ip", cmd.Flags().Lookup("preserve-pod-ip")); err != nil {
+		logger.Error("Failed to bind flag", zap.String("flag", "preserve-pod-ip"), zap.Error(err))
+	}
+	if err := viper.BindPFlag("ssh-port", cmd.Flags().Lookup("ssh-port")); err != nil {
+		logger.Error("Failed to bind flag", zap.String("flag", "ssh-port"), zap.Error(err))
 	}
 
 	return cmd
