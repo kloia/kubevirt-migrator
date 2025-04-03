@@ -205,6 +205,33 @@ rules:
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ```
 
+### OpenShift Security Context Constraints (SCC)
+
+This tool requires privileged container permissions to mount and synchronize VM disk images. Before using the tool in OpenShift environments, you must grant the appropriate SCC permissions to your service account:
+
+#### For the default service account:
+```bash
+oc adm policy add-scc-to-user privileged -z default -n <your-namespace>
+```
+
+#### For a custom service account:
+```bash
+# Create a custom service account (optional)
+oc create serviceaccount kubevirt-migrator-sa -n <your-namespace>
+
+# Grant privileged SCC permissions
+oc adm policy add-scc-to-user privileged -z kubevirt-migrator-sa -n <your-namespace>
+```
+
+Without these permissions, replication jobs will fail with errors like:
+```
+Error creating: pods "vm-name-repl-cronjob-xxxxxx-" is forbidden: unable to validate against any security context constraint: [provider "anyuid": Forbidden: not usable by user or serviceaccount, provider restricted-v2: .containers[0].privileged: Invalid value: true: Privileged containers are not allowed...]
+```
+
+These permissions are required because the tool uses privileged containers to:
+1. Mount VM disk images with `guestmount`
+2. Use `sshfs` for secure replication
+3. Perform file synchronization across clusters
 
 ## Migration Process
 
