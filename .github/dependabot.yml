@@ -1,0 +1,37 @@
+## Reference: https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: "saturday"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      dependencies:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+  
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: "monday"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: "docker"
+    directory: "/Dockerfiles"
+    schedule:
+      interval: weekly
+      day: "wednesday"
+    commit-message:
+      prefix: "chore(deps)"

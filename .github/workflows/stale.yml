@@ -1,0 +1,38 @@
+## Reference: https://github.com/actions/stale
+name: Mark stale pull requests
+on:
+  schedule:
+  - cron: "30 1 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  stale:
+    permissions:
+      pull-requests: write  # for actions/stale to close stale PRs
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/stale@5bef64f19d7facfb25b37b414482c7164d639639 # v9.1.0
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        # Number of days of inactivity before a PR becomes stale
+        days-before-stale: 120
+        # Number of days of inactivity before a stale PR is closed
+        days-before-close: 30
+        # PRs with these labels will never be considered stale
+        exempt-pr-labels: "security,pinned,dependencies"
+        # Only process pull requests
+        only-prs: true
+        # Comment to post when marking a PR as stale
+        stale-pr-message: >
+          This pull request has been automatically marked as stale because it has not had
+          recent activity in the last 120 days. It will be closed in 30 days if no
+          further activity occurs. If this PR is still relevant, please update it or
+          add a comment to keep it open. Thank you for your contributions to KubeVirt Migrator.
+        # Labels to use when marking as stale
+        stale-pr-label: 'no-pr-activity'
+        # Close comment
+        close-pr-message: >
+          This pull request has been automatically closed because it has not had any
+          activity for 150 days. Feel free to reopen it if you believe it's still relevant.

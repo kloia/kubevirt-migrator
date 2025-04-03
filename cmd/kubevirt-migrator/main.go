@@ -19,7 +19,9 @@ var rootCmd = &cobra.Command{
 It replicates disk contents and VM definitions while preserving settings.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Print help if no subcommand is provided
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to display help: %v\n", err)
+		}
 	},
 }
 
