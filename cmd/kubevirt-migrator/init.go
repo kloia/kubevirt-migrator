@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -176,12 +177,19 @@ func runInit(cmd *cobra.Command, logger *zap.Logger) error {
 	return nil
 }
 
+// createDestVM creates destination VM by importing from source
 func createDestVM(srcClient, dstClient kubernetes.KubernetesClient, cfg *config.Config, logger *zap.Logger) error {
 	// Check if VM already exists
 	_, err := dstClient.GetVMStatus(cfg.VMName, cfg.Namespace)
 	if err == nil {
 		logger.Info("Destination VM already exists")
 		return nil
+	} else if strings.Contains(err.Error(), "NotFound") {
+		// This is expected - VM doesn't exist yet
+		logger.Info("Destination VM doesn't exist yet, will be created from source VM export")
+	} else {
+		// Unexpected error, return it
+		return fmt.Errorf("error checking destination VM status: %w", err)
 	}
 
 	logger.Info("Creating destination VM")
@@ -203,12 +211,32 @@ func createDestVM(srcClient, dstClient kubernetes.KubernetesClient, cfg *config.
 			}
 
 			exec := executor.NewShellExecutor(logger)
-			_, err = exec.Execute("yq", "e", "-i", ".spec.running = false", tmpFile)
-			if err != nil {
-				if removeErr := os.Remove(tmpFile); removeErr != nil {
-					logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(removeErr))
+
+			// Check if runStrategy exists
+			runStrategyOutput, err := exec.Execute("yq", "e", ".spec.runStrategy", tmpFile)
+			runStrategyExists := err == nil && runStrategyOutput != "" && runStrategyOutput != "null"
+
+			// Set VM to stopped state based on what's available
+			if runStrategyExists {
+				// Use runStrategy if it exists
+				_, err = exec.Execute("yq", "e", "-i", `.spec.runStrategy = "Halted"`, tmpFile)
+				if err != nil {
+					if removeErr := os.Remove(tmpFile); removeErr != nil {
+						logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(removeErr))
+					}
+					return fmt.Errorf("failed to update VM definition to stopped state: %w", err)
 				}
-				return fmt.Errorf("failed to update VM definition to stopped state: %w", err)
+				logger.Info("Using runStrategy=Halted to stop VM")
+			} else {
+				// Use running field if runStrategy doesn't exist
+				_, err = exec.Execute("yq", "e", "-i", ".spec.running = false", tmpFile)
+				if err != nil {
+					if removeErr := os.Remove(tmpFile); removeErr != nil {
+						logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(removeErr))
+					}
+					return fmt.Errorf("failed to update VM definition to stopped state: %w", err)
+				}
+				logger.Info("Using running=false to stop VM")
 			}
 
 			// Read back the modified definition
@@ -268,6 +296,12 @@ func createPodAndWait(tmplMgr *template.Manager, cfg *config.Config, logger *zap
 	if err == nil {
 		logger.Info(fmt.Sprintf("%s replicator already exists", caser.String(podSuffix)))
 		return nil
+	} else if strings.Contains(err.Error(), "NotFound") {
+		// This is expected - pod doesn't exist yet
+		logger.Info(fmt.Sprintf("%s replicator doesn't exist yet, will be created", caser.String(podSuffix)))
+	} else {
+		// Unexpected error, return it
+		return fmt.Errorf("error checking %s replicator: %w", podSuffix, err)
 	}
 
 	logger.Info(fmt.Sprintf("Creating %s replicator", podSuffix))

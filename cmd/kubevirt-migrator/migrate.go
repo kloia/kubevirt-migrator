@@ -132,6 +132,13 @@ func runMigrate(cmd *cobra.Command, logger *zap.Logger) error {
 		return err
 	}
 
+	// Suspend replication CronJob first to prevent it from running during the migration
+	if err := srcClient.SuspendCronJob(fmt.Sprintf("%s-repl-cronjob", cfg.VMName), cfg.Namespace); err != nil {
+		logger.Warn("Failed to suspend replication cronjob", zap.Error(err))
+	} else {
+		logger.Info("Replication cronjob suspended")
+	}
+
 	// Stop source VM
 	if err := srcClient.StopVM(cfg.VMName, cfg.Namespace); err != nil {
 		return fmt.Errorf("failed to stop source VM: %w", err)
@@ -149,13 +156,6 @@ func runMigrate(cmd *cobra.Command, logger *zap.Logger) error {
 		return fmt.Errorf("failed to perform final sync: %w", err)
 	}
 	logger.Info("Final replication complete")
-
-	// Suspend replication CronJob
-	if err := srcClient.SuspendCronJob(fmt.Sprintf("%s-repl-cronjob", cfg.VMName), cfg.Namespace); err != nil {
-		logger.Warn("Failed to suspend replication cronjob", zap.Error(err))
-	} else {
-		logger.Info("Replication cronjob suspended")
-	}
 
 	// Start destination VM
 	if err := dstClient.StartVM(cfg.VMName, cfg.Namespace); err != nil {

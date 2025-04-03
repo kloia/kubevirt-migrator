@@ -52,10 +52,27 @@ func (c *BaseClient) GetVMStatus(vmName, namespace string) (string, error) {
 
 // StartVM starts a virtual machine
 func (c *BaseClient) StartVM(vmName, namespace string) error {
-	args := []string{"patch", "vm", vmName, "-n", namespace, "--kubeconfig", c.kubeconfig,
-		"--type", "merge", "-p", `{"spec":{"running":true}}`}
+	// First try to check if runStrategy exists
+	checkArgs := []string{"get", "vm", vmName, "-n", namespace, "--kubeconfig", c.kubeconfig,
+		"-o", "jsonpath='{.spec.runStrategy}'"}
 
-	_, err := c.executor.Execute(c.cmdName, args...)
+	runStrategyOutput, err := c.executor.Execute(c.cmdName, checkArgs...)
+	runStrategyExists := err == nil && runStrategyOutput != "" && runStrategyOutput != "''" && runStrategyOutput != "'null'"
+
+	var args []string
+	if runStrategyExists {
+		// Use runStrategy if it exists
+		args = []string{"patch", "vm", vmName, "-n", namespace, "--kubeconfig", c.kubeconfig,
+			"--type", "merge", "-p", `{"spec":{"runStrategy":"Always"}}`}
+		c.logger.Info("Using runStrategy=Always to start VM", zap.String("vm", vmName))
+	} else {
+		// Use running field if runStrategy doesn't exist
+		args = []string{"patch", "vm", vmName, "-n", namespace, "--kubeconfig", c.kubeconfig,
+			"--type", "merge", "-p", `{"spec":{"running":true}}`}
+		c.logger.Info("Using running=true to start VM", zap.String("vm", vmName))
+	}
+
+	_, err = c.executor.Execute(c.cmdName, args...)
 	if err != nil {
 		return fmt.Errorf("failed to start VM: %w", err)
 	}
@@ -65,10 +82,27 @@ func (c *BaseClient) StartVM(vmName, namespace string) error {
 
 // StopVM stops a virtual machine
 func (c *BaseClient) StopVM(vmName, namespace string) error {
-	args := []string{"patch", "vm", vmName, "-n", namespace, "--kubeconfig", c.kubeconfig,
-		"--type", "merge", "-p", `{"spec":{"running":false}}`}
+	// First try to check if runStrategy exists
+	checkArgs := []string{"get", "vm", vmName, "-n", namespace, "--kubeconfig", c.kubeconfig,
+		"-o", "jsonpath='{.spec.runStrategy}'"}
 
-	_, err := c.executor.Execute(c.cmdName, args...)
+	runStrategyOutput, err := c.executor.Execute(c.cmdName, checkArgs...)
+	runStrategyExists := err == nil && runStrategyOutput != "" && runStrategyOutput != "''" && runStrategyOutput != "'null'"
+
+	var args []string
+	if runStrategyExists {
+		// Use runStrategy if it exists
+		args = []string{"patch", "vm", vmName, "-n", namespace, "--kubeconfig", c.kubeconfig,
+			"--type", "merge", "-p", `{"spec":{"runStrategy":"Halted"}}`}
+		c.logger.Info("Using runStrategy=Halted to stop VM", zap.String("vm", vmName))
+	} else {
+		// Use running field if runStrategy doesn't exist
+		args = []string{"patch", "vm", vmName, "-n", namespace, "--kubeconfig", c.kubeconfig,
+			"--type", "merge", "-p", `{"spec":{"running":false}}`}
+		c.logger.Info("Using running=false to stop VM", zap.String("vm", vmName))
+	}
+
+	_, err = c.executor.Execute(c.cmdName, args...)
 	if err != nil {
 		return fmt.Errorf("failed to stop VM: %w", err)
 	}
@@ -93,9 +127,8 @@ func (c *BaseClient) ImportVM(vmDef []byte, namespace string) error {
 	tmpFile := "/tmp/vm-import.yaml"
 	args := []string{"apply", "-n", namespace, "--kubeconfig", c.kubeconfig, "-f", tmpFile}
 
-	// Write VM definition to temporary file
-	tmpFileInput := string(vmDef)
-	_, err := c.executor.ExecuteWithInput("cat", tmpFileInput, ">", tmpFile)
+	// Write VM definition to temporary file using Go's file operations
+	err := os.WriteFile(tmpFile, vmDef, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write VM definition to file: %w", err)
 	}
@@ -157,9 +190,8 @@ func (c *BaseClient) CreateService(svcDef []byte, namespace string) error {
 	tmpFile := "/tmp/svc-create.yaml"
 	args := []string{"apply", "-n", namespace, "--kubeconfig", c.kubeconfig, "-f", tmpFile}
 
-	// Write service definition to temporary file
-	tmpFileInput := string(svcDef)
-	_, err := c.executor.ExecuteWithInput("cat", tmpFileInput, ">", tmpFile)
+	// Write service definition to temporary file using Go's file operations
+	err := os.WriteFile(tmpFile, svcDef, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write service definition to file: %w", err)
 	}
@@ -200,9 +232,8 @@ func (c *BaseClient) CreateJob(jobDef []byte, namespace string) error {
 	tmpFile := "/tmp/job-create.yaml"
 	args := []string{"apply", "-n", namespace, "--kubeconfig", c.kubeconfig, "-f", tmpFile}
 
-	// Write job definition to temporary file
-	tmpFileInput := string(jobDef)
-	_, err := c.executor.ExecuteWithInput("cat", tmpFileInput, ">", tmpFile)
+	// Write job definition to temporary file using Go's file operations
+	err := os.WriteFile(tmpFile, jobDef, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write job definition to file: %w", err)
 	}
@@ -235,9 +266,8 @@ func (c *BaseClient) CreateSecret(secretDef []byte, namespace string) error {
 	tmpFile := "/tmp/secret-create.yaml"
 	args := []string{"apply", "-n", namespace, "--kubeconfig", c.kubeconfig, "-f", tmpFile}
 
-	// Write secret definition to temporary file
-	tmpFileInput := string(secretDef)
-	_, err := c.executor.ExecuteWithInput("cat", tmpFileInput, ">", tmpFile)
+	// Write secret definition to temporary file using Go's file operations
+	err := os.WriteFile(tmpFile, secretDef, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write secret definition to file: %w", err)
 	}
@@ -256,9 +286,8 @@ func (c *BaseClient) CreateCronJob(cronJobDef []byte, namespace string) error {
 	tmpFile := "/tmp/cronjob-create.yaml"
 	args := []string{"apply", "-n", namespace, "--kubeconfig", c.kubeconfig, "-f", tmpFile}
 
-	// Write cronjob definition to temporary file
-	tmpFileInput := string(cronJobDef)
-	_, err := c.executor.ExecuteWithInput("cat", tmpFileInput, ">", tmpFile)
+	// Write cronjob definition to temporary file using Go's file operations
+	err := os.WriteFile(tmpFile, cronJobDef, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write cronjob definition to file: %w", err)
 	}
@@ -330,13 +359,31 @@ func (c *BaseClient) ExportVMWithPreservedIP(vmName, namespace string) ([]byte, 
 		return nil, fmt.Errorf("failed to update VM definition with IP annotation: %w", err)
 	}
 
-	// Always ensure VM is not running when imported
-	_, err = c.executor.Execute("yq", "e", "-i", ".spec.running = false", tmpFile)
-	if err != nil {
-		if err := os.Remove(tmpFile); err != nil {
-			c.logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(err))
+	// Check if runStrategy exists
+	runStrategyOutput, err := c.executor.Execute("yq", "e", ".spec.runStrategy", tmpFile)
+	runStrategyExists := err == nil && runStrategyOutput != "" && runStrategyOutput != "null"
+
+	// Set VM to stopped state based on what's available
+	if runStrategyExists {
+		// Use runStrategy if it exists
+		_, err = c.executor.Execute("yq", "e", "-i", `.spec.runStrategy = "Halted"`, tmpFile)
+		if err != nil {
+			if err := os.Remove(tmpFile); err != nil {
+				c.logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(err))
+			}
+			return nil, fmt.Errorf("failed to update VM definition to stopped state: %w", err)
 		}
-		return nil, fmt.Errorf("failed to update VM definition to stopped state: %w", err)
+		c.logger.Info("Using runStrategy=Halted to stop VM")
+	} else {
+		// Use running field if runStrategy doesn't exist
+		_, err = c.executor.Execute("yq", "e", "-i", ".spec.running = false", tmpFile)
+		if err != nil {
+			if err := os.Remove(tmpFile); err != nil {
+				c.logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(err))
+			}
+			return nil, fmt.Errorf("failed to update VM definition to stopped state: %w", err)
+		}
+		c.logger.Info("Using running=false to stop VM")
 	}
 
 	// Read back the modified definition
