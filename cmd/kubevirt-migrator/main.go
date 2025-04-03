@@ -17,14 +17,19 @@ var rootCmd = &cobra.Command{
 	Short: "Migrate VMs between KubeVirt clusters",
 	Long: `A tool for migrating virtual machines between KubeVirt clusters.
 It replicates disk contents and VM definitions while preserving settings.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		// Print help if no subcommand is provided
+		cmd.Help()
+	},
 }
 
 func init() {
 	// Global flags - only keep truly global flags here
 	rootCmd.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error)")
 
-	// Disable completion command
-	rootCmd.CompletionOptions.DisableDefaultCmd = true
+	// Customize command help and errors
+	rootCmd.SilenceErrors = true
+	rootCmd.SilenceUsage = false
 
 	// Bind global flags to viper
 	if err := viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level")); err != nil {
@@ -60,9 +65,26 @@ func main() {
 	// Add commands
 	addCommands(logger)
 
+	// Run the root command with custom error handling
+	runRootCmd(logger)
+}
+
+func runRootCmd(logger *zap.Logger) {
 	// Execute
-	if err := rootCmd.Execute(); err != nil {
-		logger.Error("Command execution failed", zap.Error(err))
+	err := rootCmd.Execute()
+	if err != nil {
+		// Log error at debug level to avoid stack trace in normal output
+		logger.Debug("Command execution failed", zap.Error(err))
+
+		// Print user-friendly error message, removing any trailing newlines
+		errMsg := strings.TrimSpace(err.Error())
+		fmt.Fprintf(os.Stderr, "Error: %s\n", errMsg)
+
+		// If this is an unknown command, suggest help
+		if strings.Contains(errMsg, "unknown command") {
+			fmt.Fprintf(os.Stderr, "Run 'kubevirt-migrator --help' for usage information.\n")
+		}
+
 		os.Exit(1)
 	}
 }
@@ -72,4 +94,46 @@ func addCommands(logger *zap.Logger) {
 	rootCmd.AddCommand(newInitCmd(logger))
 	rootCmd.AddCommand(newMigrateCmd(logger))
 	rootCmd.AddCommand(newVersionCmd())
+
+	// Remove default completion command
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+
+	// Add custom completion command without PowerShell - We don't support windows for now
+	var completionCmd = &cobra.Command{
+		Use:   "completion",
+		Short: "Generate the autocompletion script for the specified shell",
+		Long:  "Generate the autocompletion script for kubevirt-migrator for the specified shell.",
+	}
+
+	// Add bash completion
+	var bashCompletionCmd = &cobra.Command{
+		Use:   "bash",
+		Short: "Generate the autocompletion script for bash",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return rootCmd.GenBashCompletion(os.Stdout)
+		},
+	}
+
+	// Add zsh completion
+	var zshCompletionCmd = &cobra.Command{
+		Use:   "zsh",
+		Short: "Generate the autocompletion script for zsh",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return rootCmd.GenZshCompletion(os.Stdout)
+		},
+	}
+
+	// Add fish completion
+	var fishCompletionCmd = &cobra.Command{
+		Use:   "fish",
+		Short: "Generate the autocompletion script for fish",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return rootCmd.GenFishCompletion(os.Stdout, true)
+		},
+	}
+
+	completionCmd.AddCommand(bashCompletionCmd)
+	completionCmd.AddCommand(zshCompletionCmd)
+	completionCmd.AddCommand(fishCompletionCmd)
+	rootCmd.AddCommand(completionCmd)
 }

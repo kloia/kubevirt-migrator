@@ -33,7 +33,7 @@ You can install using Go directly:
 
 ```bash
 # Install the latest version
-go install github.com/ugurcancaykara/kubevirt-migrator/cmd/kubevirt-migrator@latest
+go install github.com/kloia/kubevirt-migrator/cmd/kubevirt-migrator@latest
 
 # Verify installation
 kubevirt-migrator --help
@@ -43,7 +43,7 @@ kubevirt-migrator --help
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/ugurcancaykara/kubevirt-migrator.git
+   git clone https://github.com/kloia/kubevirt-migrator.git
    cd kubevirt-migrator
    ```
 
@@ -265,3 +265,35 @@ rules:
 
 ## License
 MIT License
+
+## Shell Completion
+
+The tool provides shell completion support for bash, zsh, and fish, making it easier to use the CLI commands and flags.
+
+### Bash Completion
+
+```bash
+# Generate the completion script and add it to your bash profile
+kubevirt-migrator completion bash > ~/.bash_completion.d/kubevirt-migrator
+echo 'source ~/.bash_completion.d/kubevirt-migrator' >> ~/.bashrc
+```
+
+### Zsh Completion
+
+```bash
+# For macOS/Linux with zsh
+mkdir -p ~/.zsh/completion
+kubevirt-migrator completion zsh > ~/.zsh/completion/_kubevirt-migrator
+
+# Add to your ~/.zshrc if not already present
+echo 'fpath=(~/.zsh/completion $fpath)' >> ~/.zshrc
+echo 'autoload -U compinit && compinit' >> ~/.zshrc
+source ~/.zshrc
+```
+
+### Fish Completion
+
+```bash
+# Generate the completion script for fish
+kubevirt-migrator completion fish > ~/.config/fish/completions/kubevirt-migrator.fish
+```
