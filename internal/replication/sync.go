@@ -12,18 +12,30 @@ import (
 	"github.com/kloia/kubevirt-migrator/internal/template"
 )
 
+// TemplateManager defines the interface for template operations
+type TemplateManager interface {
+	RenderAndApply(kind template.TemplateKind, vars template.TemplateVariables, kubeconfig string) error
+	SetKubeCLI(kubeCLI string)
+}
+
+// SSHManagerInterface defines the interface for SSH operations
+type SSHManagerInterface interface {
+	GenerateKeys(cfg *config.Config) error
+	SetupDestinationAuth(cfg *config.Config) error
+}
+
 // SyncManager handles replication and synchronization
 type SyncManager struct {
 	executor executor.CommandExecutor
 	logger   *zap.Logger
-	sshMgr   *SSHManager
-	tmplMgr  *template.Manager
+	sshMgr   SSHManagerInterface
+	tmplMgr  TemplateManager
 	syncTool sync.SyncCommand
 }
 
 // NewSyncManager creates a new synchronization manager
 func NewSyncManager(executor executor.CommandExecutor, logger *zap.Logger,
-	sshMgr *SSHManager, tmplMgr *template.Manager) *SyncManager {
+	sshMgr SSHManagerInterface, tmplMgr TemplateManager) *SyncManager {
 	return &SyncManager{
 		executor: executor,
 		logger:   logger,

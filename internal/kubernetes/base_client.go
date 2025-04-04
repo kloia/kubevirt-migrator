@@ -43,11 +43,11 @@ func (c *BaseClient) GetVMStatus(vmName, namespace string) (string, error) {
 	}
 
 	parts := strings.Fields(output)
-	if len(parts) < 3 {
+	if len(parts) < 2 {
 		return "", fmt.Errorf("unexpected output format: %s", output)
 	}
 
-	return parts[2], nil
+	return parts[1], nil
 }
 
 // StartVM starts a virtual machine

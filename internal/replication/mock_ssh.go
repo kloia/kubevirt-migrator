@@ -30,7 +30,7 @@ func NewMockSSHManager() *MockSSHManager {
 	}
 }
 
-// SetError sets an error for GenerateKeys by VM name
+// SetGenerateKeysError sets an error for GenerateKeys by VM name
 func (m *MockSSHManager) SetGenerateKeysError(vmName string, err error) {
 	m.GenerateKeysErrors[vmName] = err
 }
