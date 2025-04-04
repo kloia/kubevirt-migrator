@@ -128,7 +128,7 @@ func (c *BaseClient) ImportVM(vmDef []byte, namespace string) error {
 	args := []string{"apply", "-n", namespace, "--kubeconfig", c.kubeconfig, "-f", tmpFile}
 
 	// Write VM definition to temporary file using Go's file operations
-	err := os.WriteFile(tmpFile, vmDef, 0644)
+	err := os.WriteFile(tmpFile, vmDef, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write VM definition to file: %w", err)
 	}
@@ -191,7 +191,7 @@ func (c *BaseClient) CreateService(svcDef []byte, namespace string) error {
 	args := []string{"apply", "-n", namespace, "--kubeconfig", c.kubeconfig, "-f", tmpFile}
 
 	// Write service definition to temporary file using Go's file operations
-	err := os.WriteFile(tmpFile, svcDef, 0644)
+	err := os.WriteFile(tmpFile, svcDef, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write service definition to file: %w", err)
 	}
@@ -233,7 +233,7 @@ func (c *BaseClient) CreateJob(jobDef []byte, namespace string) error {
 	args := []string{"apply", "-n", namespace, "--kubeconfig", c.kubeconfig, "-f", tmpFile}
 
 	// Write job definition to temporary file using Go's file operations
-	err := os.WriteFile(tmpFile, jobDef, 0644)
+	err := os.WriteFile(tmpFile, jobDef, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write job definition to file: %w", err)
 	}
@@ -267,7 +267,7 @@ func (c *BaseClient) CreateSecret(secretDef []byte, namespace string) error {
 	args := []string{"apply", "-n", namespace, "--kubeconfig", c.kubeconfig, "-f", tmpFile}
 
 	// Write secret definition to temporary file using Go's file operations
-	err := os.WriteFile(tmpFile, secretDef, 0644)
+	err := os.WriteFile(tmpFile, secretDef, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write secret definition to file: %w", err)
 	}
@@ -287,7 +287,7 @@ func (c *BaseClient) CreateCronJob(cronJobDef []byte, namespace string) error {
 	args := []string{"apply", "-n", namespace, "--kubeconfig", c.kubeconfig, "-f", tmpFile}
 
 	// Write cronjob definition to temporary file using Go's file operations
-	err := os.WriteFile(tmpFile, cronJobDef, 0644)
+	err := os.WriteFile(tmpFile, cronJobDef, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write cronjob definition to file: %w", err)
 	}
