@@ -174,13 +174,13 @@ func runMigrate(cmd *cobra.Command, logger *zap.Logger) error {
 	var cleanupErrors []error
 
 	// Clean up source resources
-	if err := srcClient.CleanupMigrationResources(cfg.VMName, cfg.Namespace); err != nil {
+	if err := srcClient.CleanupMigrationResources(cfg.VMName, cfg.Namespace, false); err != nil {
 		cleanupErrors = append(cleanupErrors, fmt.Errorf("source cleanup error: %w", err))
 		logger.Warn("Source cleanup failed", zap.Error(err))
 	}
 
 	// Clean up destination resources
-	if err := dstClient.CleanupMigrationResources(cfg.VMName, cfg.Namespace); err != nil {
+	if err := dstClient.CleanupMigrationResources(cfg.VMName, cfg.Namespace, true); err != nil {
 		cleanupErrors = append(cleanupErrors, fmt.Errorf("destination cleanup error: %w", err))
 		logger.Warn("Destination cleanup failed", zap.Error(err))
 	}

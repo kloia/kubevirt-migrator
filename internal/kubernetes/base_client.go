@@ -404,8 +404,12 @@ func (c *BaseClient) ExportVMWithPreservedIP(vmName, namespace string) ([]byte, 
 }
 
 // CleanupMigrationResources cleans up all resources created during migration
-func (c *BaseClient) CleanupMigrationResources(vmName, namespace string) error {
-	c.logger.Info("Cleaning up migration resources", zap.String("vm", vmName), zap.String("namespace", namespace))
+func (c *BaseClient) CleanupMigrationResources(vmName, namespace string, isDestination bool) error {
+	c.logger.Info("Cleaning up migration resources",
+		zap.String("vm", vmName),
+		zap.String("namespace", namespace),
+		zap.Bool("isDestination", isDestination))
+
 	var errs []error
 
 	// Define resource types to clean up
@@ -422,23 +426,37 @@ func (c *BaseClient) CleanupMigrationResources(vmName, namespace string) error {
 		{"secret", fmt.Sprintf("%s-repl-ssh-keys", vmName)},
 	}
 
-	// Resources to clean up in destination cluster (handled by caller for different kubeconfig)
+	// Resources to clean up in destination cluster
 	dstResources := []Resource{
 		{"pod", fmt.Sprintf("%s-dst-replicator", vmName)},
 		{"svc", fmt.Sprintf("%s-dst-svc", vmName)},
 	}
 
-	// Cleanup source or destination resources based on current client
+	// Select resources based on whether this is source or destination cluster
 	resources := srcResources
-	if strings.Contains(c.kubeconfig, "dst-kubeconfig") {
+	if isDestination {
 		resources = dstResources
+		c.logger.Info("Identified as destination cluster cleanup")
+	} else {
+		c.logger.Info("Identified as source cluster cleanup")
 	}
 
-	// Delete each resource
+	// Delete each resource with idempotent approach
 	for _, res := range resources {
 		c.logger.Info(fmt.Sprintf("Deleting %s", res.kind), zap.String("name", res.name))
+
+		// First check if resource exists
+		checkArgs := []string{"get", res.kind, res.name, "-n", namespace, "--kubeconfig", c.kubeconfig, "--no-headers", "--ignore-not-found"}
+		output, _ := c.executor.Execute(c.cmdName, checkArgs...)
+
+		if strings.TrimSpace(output) == "" {
+			c.logger.Info(fmt.Sprintf("%s %s not found, skipping delete", res.kind, res.name))
+			continue
+		}
+
+		// Resource exists, delete it
 		_, err := c.executor.Execute(c.cmdName, "delete", res.kind, res.name,
-			"-n", namespace, "--kubeconfig", c.kubeconfig, "--wait")
+			"-n", namespace, "--kubeconfig", c.kubeconfig, "--wait", "--ignore-not-found")
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to delete %s %s: %w", res.kind, res.name, err))
 			c.logger.Warn(fmt.Sprintf("Failed to delete %s", res.kind),

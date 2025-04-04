@@ -36,5 +36,5 @@ type KubernetesClient interface {
 	SuspendCronJob(cronJobName, namespace string) error
 
 	// Cleanup Management
-	CleanupMigrationResources(vmName, namespace string) error
+	CleanupMigrationResources(vmName, namespace string, isDestination bool) error
 }
