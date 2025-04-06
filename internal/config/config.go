@@ -13,7 +13,6 @@ type Config struct {
 	Namespace     string
 	SrcKubeconfig string
 	DstKubeconfig string
-	PreservePodIP bool
 	LogLevel      string
 	SSHPort       int
 
@@ -58,7 +57,6 @@ func LoadConfig() (*Config, error) {
 		Namespace:     viper.GetString("namespace"),
 		SrcKubeconfig: viper.GetString("src-kubeconfig"),
 		DstKubeconfig: viper.GetString("dst-kubeconfig"),
-		PreservePodIP: viper.GetBool("preserve-pod-ip"),
 		LogLevel:      viper.GetString("log-level"),
 		SSHPort:       viper.GetInt("ssh-port"),
 
@@ -109,11 +107,6 @@ func ParseInitConfig(cmd *cobra.Command) (*Config, error) {
 	cfg.DstKubeconfig, err = cmd.Flags().GetString("dst-kubeconfig")
 	if err != nil {
 		return nil, fmt.Errorf("error getting dst-kubeconfig: %w", err)
-	}
-
-	cfg.PreservePodIP, err = cmd.Flags().GetBool("preserve-pod-ip")
-	if err != nil {
-		return nil, fmt.Errorf("error getting preserve-pod-ip: %w", err)
 	}
 
 	cfg.SSHPort, err = cmd.Flags().GetInt("ssh-port")

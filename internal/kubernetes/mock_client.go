@@ -75,15 +75,6 @@ func (m *MockKubernetesClient) ExportVM(vmName, namespace string) ([]byte, error
 	return nil, fmt.Errorf("vm %s not found in namespace %s", vmName, namespace)
 }
 
-// ExportVMWithPreservedIP exports a VM definition with preserved IP
-func (m *MockKubernetesClient) ExportVMWithPreservedIP(vmName, namespace string) ([]byte, error) {
-	key := fmt.Sprintf("%s/%s", namespace, vmName)
-	if data, ok := m.ExportedVMs[key]; ok {
-		return data, nil
-	}
-	return nil, fmt.Errorf("vm %s not found in namespace %s", vmName, namespace)
-}
-
 // ImportVM imports a VM definition
 func (m *MockKubernetesClient) ImportVM(vmDef []byte, namespace string) error {
 	m.ImportedVMs = append(m.ImportedVMs, vmDef)

@@ -11,7 +11,6 @@ type KubernetesClient interface {
 	StartVM(vmName, namespace string) error
 	StopVM(vmName, namespace string) error
 	ExportVM(vmName, namespace string) ([]byte, error)
-	ExportVMWithPreservedIP(vmName, namespace string) ([]byte, error)
 	ImportVM(vmDef []byte, namespace string) error
 	WaitForVMStatus(vmName, namespace, expectedStatus string, timeout time.Duration) error
 

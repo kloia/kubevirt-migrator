@@ -35,7 +35,6 @@ func newInitCmd(logger *zap.Logger) *cobra.Command {
 	cmd.Flags().String("namespace", "", "Kubernetes namespace (required)")
 	cmd.Flags().String("src-kubeconfig", "", "Source cluster kubeconfig file (required)")
 	cmd.Flags().String("dst-kubeconfig", "", "Destination cluster kubeconfig file (required)")
-	cmd.Flags().Bool("preserve-pod-ip", false, "Preserve pod IP address during migration")
 	cmd.Flags().Int("ssh-port", 22, "SSH port for replication")
 
 	// Add the new kubecli and sync-tool flags
@@ -68,9 +67,6 @@ func newInitCmd(logger *zap.Logger) *cobra.Command {
 	}
 	if err := viper.BindPFlag("dst-kubeconfig", cmd.Flags().Lookup("dst-kubeconfig")); err != nil {
 		logger.Error("Failed to bind flag", zap.String("flag", "dst-kubeconfig"), zap.Error(err))
-	}
-	if err := viper.BindPFlag("preserve-pod-ip", cmd.Flags().Lookup("preserve-pod-ip")); err != nil {
-		logger.Error("Failed to bind flag", zap.String("flag", "preserve-pod-ip"), zap.Error(err))
 	}
 	if err := viper.BindPFlag("ssh-port", cmd.Flags().Lookup("ssh-port")); err != nil {
 		logger.Error("Failed to bind flag", zap.String("flag", "ssh-port"), zap.Error(err))
@@ -194,69 +190,60 @@ func createDestVM(srcClient, dstClient kubernetes.KubernetesClient, cfg *config.
 
 	logger.Info("Creating destination VM")
 
-	// Export VM from source with or without IP preservation
-	var vmDef []byte
-	if cfg.PreservePodIP {
-		logger.Info("Using IP preservation for VM migration")
-		vmDef, err = srcClient.ExportVMWithPreservedIP(cfg.VMName, cfg.Namespace)
-	} else {
-		// Get regular VM definition and ensure it's stopped
-		vmDef, err = srcClient.ExportVM(cfg.VMName, cfg.Namespace)
-
-		if err == nil {
-			// Ensure VM is stopped by setting running=false
-			tmpFile := "/tmp/vm-def.yaml"
-			if err := os.WriteFile(tmpFile, vmDef, 0600); err != nil {
-				return fmt.Errorf("failed to write VM definition to file: %w", err)
-			}
-
-			exec := executor.NewShellExecutor(logger)
-
-			// Check if runStrategy exists
-			runStrategyOutput, err := exec.Execute("yq", "e", ".spec.runStrategy", tmpFile)
-			runStrategyExists := err == nil && runStrategyOutput != "" && runStrategyOutput != "null"
-
-			// Set VM to stopped state based on what's available
-			if runStrategyExists {
-				// Use runStrategy if it exists
-				_, err = exec.Execute("yq", "e", "-i", `.spec.runStrategy = "Halted"`, tmpFile)
-				if err != nil {
-					if removeErr := os.Remove(tmpFile); removeErr != nil {
-						logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(removeErr))
-					}
-					return fmt.Errorf("failed to update VM definition to stopped state: %w", err)
-				}
-				logger.Info("Using runStrategy=Halted to stop VM")
-			} else {
-				// Use running field if runStrategy doesn't exist
-				_, err = exec.Execute("yq", "e", "-i", ".spec.running = false", tmpFile)
-				if err != nil {
-					if removeErr := os.Remove(tmpFile); removeErr != nil {
-						logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(removeErr))
-					}
-					return fmt.Errorf("failed to update VM definition to stopped state: %w", err)
-				}
-				logger.Info("Using running=false to stop VM")
-			}
-
-			// Read back the modified definition
-			vmDef, err = os.ReadFile(tmpFile)
-			if err != nil {
-				if removeErr := os.Remove(tmpFile); removeErr != nil {
-					logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(removeErr))
-				}
-				return fmt.Errorf("failed to read modified VM definition: %w", err)
-			}
-
-			// Clean up temp file
-			if err := os.Remove(tmpFile); err != nil {
-				logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(err))
-			}
-		}
-	}
+	// Export VM from source
+	vmDef, err := srcClient.ExportVM(cfg.VMName, cfg.Namespace)
 
 	if err != nil {
 		return fmt.Errorf("failed to export VM: %w", err)
+	}
+
+	// Ensure VM is stopped by setting running=false
+	tmpFile := "/tmp/vm-def.yaml"
+	if err := os.WriteFile(tmpFile, vmDef, 0600); err != nil {
+		return fmt.Errorf("failed to write VM definition to file: %w", err)
+	}
+
+	exec := executor.NewShellExecutor(logger)
+
+	// Check if runStrategy exists
+	runStrategyOutput, err := exec.Execute("yq", "e", ".spec.runStrategy", tmpFile)
+	runStrategyExists := err == nil && runStrategyOutput != "" && runStrategyOutput != "null"
+
+	// Set VM to stopped state based on what's available
+	if runStrategyExists {
+		// Use runStrategy if it exists
+		_, err = exec.Execute("yq", "e", "-i", `.spec.runStrategy = "Halted"`, tmpFile)
+		if err != nil {
+			if removeErr := os.Remove(tmpFile); removeErr != nil {
+				logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(removeErr))
+			}
+			return fmt.Errorf("failed to update VM definition to stopped state: %w", err)
+		}
+		logger.Info("Using runStrategy=Halted to stop VM")
+	} else {
+		// Use running field if runStrategy doesn't exist
+		_, err = exec.Execute("yq", "e", "-i", ".spec.running = false", tmpFile)
+		if err != nil {
+			if removeErr := os.Remove(tmpFile); removeErr != nil {
+				logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(removeErr))
+			}
+			return fmt.Errorf("failed to update VM definition to stopped state: %w", err)
+		}
+		logger.Info("Using running=false to stop VM")
+	}
+
+	// Read back the modified definition
+	vmDef, err = os.ReadFile(tmpFile)
+	if err != nil {
+		if removeErr := os.Remove(tmpFile); removeErr != nil {
+			logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(removeErr))
+		}
+		return fmt.Errorf("failed to read modified VM definition: %w", err)
+	}
+
+	// Clean up temp file
+	if err := os.Remove(tmpFile); err != nil {
+		logger.Warn("Failed to remove temp file", zap.String("file", tmpFile), zap.Error(err))
 	}
 
 	// Import VM to destination

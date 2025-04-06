@@ -90,8 +90,7 @@ kubevirt-migrator init \
   --vm-name <vm-name> \
   --namespace <namespace> \
   --src-kubeconfig <source-kubeconfig> \
-  --dst-kubeconfig <destination-kubeconfig> \
-  [--preserve-pod-ip]
+  --dst-kubeconfig <destination-kubeconfig>
 ```
 
 This will:
@@ -133,7 +132,6 @@ Available options:
 | `--namespace` | `KUBEVIRT_MIGRATOR_NAMESPACE` | Kubernetes namespace (required) |
 | `--src-kubeconfig` | `KUBEVIRT_MIGRATOR_SRC_KUBECONFIG` | Source cluster kubeconfig (required) |
 | `--dst-kubeconfig` | `KUBEVIRT_MIGRATOR_DST_KUBECONFIG` | Destination cluster kubeconfig (required) |
-| `--preserve-pod-ip` | `KUBEVIRT_MIGRATOR_PRESERVE_POD_IP` | Preserve pod IP address during migration |
 | `--log-level` | `KUBEVIRT_MIGRATOR_LOG_LEVEL` | Logging level (debug, info, warn, error) |
 | `--ssh-port` | `KUBEVIRT_MIGRATOR_SSH_PORT` | SSH port for replication |
 

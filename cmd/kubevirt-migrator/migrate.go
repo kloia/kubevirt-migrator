@@ -31,7 +31,6 @@ func newMigrateCmd(logger *zap.Logger) *cobra.Command {
 	cmd.Flags().String("namespace", "", "Kubernetes namespace (required)")
 	cmd.Flags().String("src-kubeconfig", "", "Source cluster kubeconfig file (required)")
 	cmd.Flags().String("dst-kubeconfig", "", "Destination cluster kubeconfig file (required)")
-	cmd.Flags().Bool("preserve-pod-ip", false, "Preserve pod IP address during migration")
 	cmd.Flags().Int("ssh-port", 22, "SSH port for replication")
 
 	// Add the new kubecli and sync-tool flags
@@ -64,9 +63,6 @@ func newMigrateCmd(logger *zap.Logger) *cobra.Command {
 	}
 	if err := viper.BindPFlag("dst-kubeconfig", cmd.Flags().Lookup("dst-kubeconfig")); err != nil {
 		logger.Error("Failed to bind flag", zap.String("flag", "dst-kubeconfig"), zap.Error(err))
-	}
-	if err := viper.BindPFlag("preserve-pod-ip", cmd.Flags().Lookup("preserve-pod-ip")); err != nil {
-		logger.Error("Failed to bind flag", zap.String("flag", "preserve-pod-ip"), zap.Error(err))
 	}
 	if err := viper.BindPFlag("ssh-port", cmd.Flags().Lookup("ssh-port")); err != nil {
 		logger.Error("Failed to bind flag", zap.String("flag", "ssh-port"), zap.Error(err))
