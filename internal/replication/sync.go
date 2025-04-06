@@ -101,6 +101,11 @@ func (s *SyncManager) GetDestinationInfo(cfg *config.Config) (nodePort string, h
 
 // PerformInitialSync performs the initial synchronization
 func (s *SyncManager) PerformInitialSync(cfg *config.Config) error {
+	if cfg.DryRun {
+		s.logger.Info("Skipping initial sync due to dry-run mode")
+		return nil
+	}
+
 	s.logger.Info("Getting destination information for initial sync")
 
 	// Get NodePort and Host IP
@@ -140,35 +145,119 @@ func (s *SyncManager) PerformInitialSync(cfg *config.Config) error {
 // CreateSyncCommand generates a synchronization command based on the sync tool
 func (s *SyncManager) CreateSyncCommand(nodePort, hostIP string, cfg *config.Config) (string, error) {
 	if s.syncTool == nil {
-		// Fallback to default rclone command if syncTool is not set
-		cmd := fmt.Sprintf("mkdir -p /data/dimg /data/dfs /data/sfs/; "+
-			"sshfs -o StrictHostKeyChecking=no -o port=%s %s:/data/simg /data/dimg; "+
-			"guestmount -a /data/simg/disk.img -m /dev/sda4 --ro /data/sfs; "+
-			"guestmount -a /data/dimg/disk.img -m /dev/sda4 --rw /data/dfs; "+
-			"rclone sync --progress /data/sfs/ /data/dfs/ --skip-links --checkers 8 "+
-			"--contimeout 100s --timeout 300s --retries 3 --low-level-retries 10 "+
-			"--drive-acknowledge-abuse --stats 1s --cutoff-mode=soft; sleep 20",
-			nodePort, hostIP)
+		// Dynamic partition detection command using virt-filesystems for Linux filesystem partitions
+		cmd := fmt.Sprintf(`mkdir -p /data/dimg;
+sshfs -o StrictHostKeyChecking=no -o port=%s %s:/data/simg /data/dimg;
+DISK_IMG="/data/simg/disk.img";
 
-		s.logger.Info("Created default rclone replication command (fallback)")
+# Using virt-filesystems to list partitions
+VIRT_FS_OUTPUT=$(virt-filesystems --partitions --format=raw -a ${DISK_IMG});
+
+# Get partition information from fdisk
+FDISK_OUTPUT=$(fdisk -l ${DISK_IMG});
+
+# Extract only partitions marked as "Linux filesystem"
+LINUX_FS_PARTITIONS=$(echo "$FDISK_OUTPUT" | grep "Linux filesystem" | awk '{print $1}');
+
+# Extract partition numbers only
+PART_NUMS=();
+for partition in $LINUX_FS_PARTITIONS; do
+    # Extract partition number (the last digit after img)
+    PART_NUM=${partition##*img};
+    PART_NUMS+=("$PART_NUM");
+done;
+
+# Get available device formats from virt-filesystems
+AVAILABLE_DEVICES=();
+for dev in $VIRT_FS_OUTPUT; do
+    for num in "${PART_NUMS[@]}"; do
+        # Check if the device ends with the partition number
+        if [[ $dev == */[a-z]*$num ]]; then
+            AVAILABLE_DEVICES+=("$dev");
+        fi;
+    done;
+done;
+
+# Process each detected filesystem partition
+for device in "${AVAILABLE_DEVICES[@]}"; do
+    # Get device name for mount point
+    device_name=$(basename "$device");
+    
+    # Create mount points
+    mkdir -p /data/sfs_${device_name} /data/dfs_${device_name};
+    
+    # Mount filesystems
+    guestmount -a /data/simg/disk.img -m ${device} --ro /data/sfs_${device_name};
+    guestmount -a /data/dimg/disk.img -m ${device} --rw /data/dfs_${device_name};
+    
+    # Sync files - pass source and destination as direct arguments
+    rclone sync --progress /data/sfs_${device_name}/ /data/dfs_${device_name}/ --skip-links --checkers 8 --contimeout 100s --timeout 300s --retries 3 --low-level-retries 10 --drive-acknowledge-abuse --stats 1s --cutoff-mode=soft;
+done;
+
+sleep 20`, nodePort, hostIP)
+
+		s.logger.Info("Created dynamic multi-filesystem detection and replication command with virt-filesystems")
 		return cmd, nil
 	}
 
-	// Get sync command from the sync tool implementation
-	syncToolName, syncArgs := s.syncTool.GenerateSyncCommand("/data/sfs/", "/data/dfs/", map[string]string{
+	// Get sync options (without specifying paths - they will be dynamically generated in the script)
+	syncToolName, syncArgs := s.syncTool.GenerateSyncCommand("", "", map[string]string{
 		"checksum": "true",
 		"checkers": "8",
 	})
 
-	// Create the full replication command
-	cmd := fmt.Sprintf("mkdir -p /data/dimg /data/dfs /data/sfs/; "+
-		"sshfs -o StrictHostKeyChecking=no -o port=%s %s:/data/simg /data/dimg; "+
-		"guestmount -a /data/simg/disk.img -m /dev/sda4 --ro /data/sfs; "+
-		"guestmount -a /data/dimg/disk.img -m /dev/sda4 --rw /data/dfs; "+
-		"%s %s; sleep 20",
-		nodePort, hostIP, syncToolName, strings.Join(syncArgs, " "))
+	// Create the full replication command with dynamic filesystem detection using virt-filesystems
+	cmd := fmt.Sprintf(`mkdir -p /data/dimg;
+sshfs -o StrictHostKeyChecking=no -o port=%s %s:/data/simg /data/dimg;
+DISK_IMG="/data/simg/disk.img";
 
-	s.logger.Info("Created replication command with sync tool",
+# Using virt-filesystems to list partitions
+VIRT_FS_OUTPUT=$(virt-filesystems --partitions --format=raw -a ${DISK_IMG});
+
+# Get partition information from fdisk
+FDISK_OUTPUT=$(fdisk -l ${DISK_IMG});
+
+# Extract only partitions marked as "Linux filesystem"
+LINUX_FS_PARTITIONS=$(echo "$FDISK_OUTPUT" | grep "Linux filesystem" | awk '{print $1}');
+
+# Extract partition numbers only
+PART_NUMS=();
+for partition in $LINUX_FS_PARTITIONS; do
+    # Extract partition number (the last digit after img)
+    PART_NUM=${partition##*img};
+    PART_NUMS+=("$PART_NUM");
+done;
+
+# Get available device formats from virt-filesystems
+AVAILABLE_DEVICES=();
+for dev in $VIRT_FS_OUTPUT; do
+    for num in "${PART_NUMS[@]}"; do
+        # Check if the device ends with the partition number
+        if [[ $dev == */[a-z]*$num ]]; then
+            AVAILABLE_DEVICES+=("$dev");
+        fi;
+    done;
+done;
+
+# Process each detected filesystem partition
+for device in "${AVAILABLE_DEVICES[@]}"; do
+    # Get device name for mount point
+    device_name=$(basename "$device");
+    
+    # Create mount points
+    mkdir -p /data/sfs_${device_name} /data/dfs_${device_name};
+    
+    # Mount filesystems
+    guestmount -a /data/simg/disk.img -m ${device} --ro /data/sfs_${device_name};
+    guestmount -a /data/dimg/disk.img -m ${device} --rw /data/dfs_${device_name};
+    
+    # Run the sync tool with dynamically generated paths
+    %s %s /data/sfs_${device_name}/ /data/dfs_${device_name}/;
+done;
+
+sleep 20`, nodePort, hostIP, syncToolName, strings.Join(syncArgs, " "))
+
+	s.logger.Info("Created dynamic multi-filesystem detection and replication command with virt-filesystems",
 		zap.String("syncTool", s.syncTool.GetToolName()))
 
 	return cmd, nil
@@ -176,6 +265,11 @@ func (s *SyncManager) CreateSyncCommand(nodePort, hostIP string, cfg *config.Con
 
 // SetupCronJob sets up the asynchronous replication cronjob
 func (s *SyncManager) SetupCronJob(cfg *config.Config) error {
+	if cfg.DryRun {
+		s.logger.Info("Skipping cronjob setup due to dry-run mode")
+		return nil
+	}
+
 	s.logger.Info("Setting up replication cronjob",
 		zap.String("vm", cfg.VMName),
 		zap.String("kubeCLI", cfg.KubeCLI),

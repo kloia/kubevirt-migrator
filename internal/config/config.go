@@ -30,6 +30,7 @@ type Config struct {
 	KubeCLI             string // "oc", "kubectl"
 	SyncTool            string // "rclone", "rsync"
 	ReplicationSchedule string // Cron schedule for replication
+	DryRun              bool   // If true, will set up pods but not run sync or create cronjobs
 }
 
 // Validate checks if the configuration is valid
@@ -165,6 +166,12 @@ func ParseInitConfig(cmd *cobra.Command) (*Config, error) {
 	cfg.ReplicationSchedule, err = cmd.Flags().GetString("replication-schedule")
 	if err != nil {
 		return nil, fmt.Errorf("error getting replication-schedule: %w", err)
+	}
+
+	// Parse dry-run flag
+	cfg.DryRun, err = cmd.Flags().GetBool("dry-run")
+	if err != nil {
+		return nil, fmt.Errorf("error getting dry-run: %w", err)
 	}
 
 	cfg.setDefaults()

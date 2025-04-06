@@ -44,6 +44,9 @@ func newInitCmd(logger *zap.Logger) *cobra.Command {
 	// Add the replication schedule flag
 	cmd.Flags().String("replication-schedule", "*/15 * * * *", "Cron schedule for replication (default: every 15 minutes)")
 
+	// Add dry-run flag
+	cmd.Flags().Bool("dry-run", false, "Set up pods but don't run sync or create cronjobs")
+
 	// Mark required flags
 	if err := cmd.MarkFlagRequired("vm-name"); err != nil {
 		logger.Error("Failed to mark flag as required", zap.String("flag", "vm-name"), zap.Error(err))
@@ -82,6 +85,11 @@ func newInitCmd(logger *zap.Logger) *cobra.Command {
 	}
 	if err := viper.BindPFlag("replication-schedule", cmd.Flags().Lookup("replication-schedule")); err != nil {
 		logger.Error("Failed to bind flag", zap.String("flag", "replication-schedule"), zap.Error(err))
+	}
+
+	// Bind dry-run flag
+	if err := viper.BindPFlag("dry-run", cmd.Flags().Lookup("dry-run")); err != nil {
+		logger.Error("Failed to bind flag", zap.String("flag", "dry-run"), zap.Error(err))
 	}
 
 	return cmd
@@ -164,6 +172,15 @@ func runInit(cmd *cobra.Command, logger *zap.Logger) error {
 	// Setup destination SSH authorization
 	if err := sshMgr.SetupDestinationAuth(cfg); err != nil {
 		return err
+	}
+
+	// Dry-run modunda sync ve cronjob adımlarını atla
+	if cfg.DryRun {
+		logger.Info("Running in dry-run mode, skipping sync and cronjob setup")
+		logger.Info("Pod setup completed successfully. You can now connect to the pods for testing.")
+		logger.Info("Source pod: " + fmt.Sprintf("%s-src-replicator", cfg.VMName))
+		logger.Info("Destination pod: " + fmt.Sprintf("%s-dst-replicator", cfg.VMName))
+		return nil
 	}
 
 	// Perform initial sync with appropriate sync tool

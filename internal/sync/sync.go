@@ -28,7 +28,15 @@ type RcloneSync struct{}
 
 // GenerateSyncCommand creates a rclone sync command with the provided options
 func (r *RcloneSync) GenerateSyncCommand(sourcePath, destPath string, options map[string]string) (string, []string) {
-	args := []string{"sync", "--progress", sourcePath, destPath}
+	var args []string
+
+	// Start with base command
+	args = append(args, "sync", "--progress")
+
+	// Add source and dest paths only if they're provided
+	if sourcePath != "" && destPath != "" {
+		args = append(args, sourcePath, destPath)
+	}
 
 	// Add configurable options
 	if v, ok := options["checksum"]; ok && v == "true" {
@@ -57,8 +65,15 @@ type RsyncSync struct{}
 
 // GenerateSyncCommand creates a rsync sync command with the provided options
 func (r *RsyncSync) GenerateSyncCommand(sourcePath, destPath string, options map[string]string) (string, []string) {
-	// Base rsync command: -avzP is common for archive mode, verbose, compress, progress
-	args := []string{"-avzP", sourcePath + "/", destPath + "/"}
+	var args []string
+
+	// Start with base options
+	args = append(args, "-avzP")
+
+	// Add source and dest paths only if they're provided
+	if sourcePath != "" && destPath != "" {
+		args = append(args, sourcePath+"/", destPath+"/")
+	}
 
 	// Add configurable options
 	if v, ok := options["checksum"]; ok && v == "true" {
