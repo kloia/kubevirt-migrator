@@ -23,6 +23,7 @@ It replicates disk contents and VM definitions while preserving settings.`,
 			fmt.Fprintf(os.Stderr, "Failed to display help: %v\n", err)
 		}
 	},
+	SilenceUsage: true,
 }
 
 func init() {
@@ -31,7 +32,7 @@ func init() {
 
 	// Customize command help and errors
 	rootCmd.SilenceErrors = true
-	rootCmd.SilenceUsage = false
+	rootCmd.SilenceUsage = true
 
 	// Bind global flags to viper
 	if err := viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level")); err != nil {
@@ -95,6 +96,7 @@ func addCommands(logger *zap.Logger) {
 	// Add init and migrate commands
 	rootCmd.AddCommand(newInitCmd(logger))
 	rootCmd.AddCommand(newMigrateCmd(logger))
+	rootCmd.AddCommand(newCheckCmd(logger))
 	rootCmd.AddCommand(newVersionCmd())
 
 	// Remove default completion command

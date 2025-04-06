@@ -433,3 +433,31 @@ func (c *BaseClient) WaitForVMStatus(vmName, namespace, expectedStatus string, t
 		time.Sleep(interval)
 	}
 }
+
+// GetPodHostIP retrieves the host IP of a pod
+func (c *BaseClient) GetPodHostIP(podName, namespace string) (string, error) {
+	c.logger.Debug("Getting pod host IP",
+		zap.String("pod", podName),
+		zap.String("namespace", namespace))
+
+	args := []string{
+		"get", "pod", podName,
+		"-n", namespace,
+		"--kubeconfig", c.kubeconfig,
+		"-o", "jsonpath='{.status.hostIP}'",
+	}
+
+	output, err := c.executor.Execute(c.cmdName, args...)
+	if err != nil {
+		return "", fmt.Errorf("failed to get pod host IP: %w", err)
+	}
+
+	// Remove surrounding quotes
+	hostIP := strings.Trim(output, "'")
+
+	c.logger.Debug("Got pod host IP",
+		zap.String("pod", podName),
+		zap.String("hostIP", hostIP))
+
+	return hostIP, nil
+}

@@ -79,28 +79,26 @@ func (e *ShellExecutor) executeWithOptions(command string, options CommandOption
 	stderrStr := stderr.String()
 
 	// Check for errors
-	if err != nil && e.logger != nil {
-		// Check if this is a NotFound error (common and expected in some flows)
-		if strings.Contains(stderrStr, "NotFound") {
-			// For NotFound errors, only log at debug level
-			e.logger.Debug("Resource not found",
-				zap.String("command", command),
-				zap.Strings("args", args),
-				zap.String("stderr", stderrStr),
-			)
-		} else {
-			// Only log as ERROR for non-NotFound errors
-			e.logger.Error("Command execution failed",
+	if err != nil {
+		if strings.TrimSpace(stderrStr) != "" {
+			if e.logger != nil {
+				e.logger.Debug("Command execution failed",
+					zap.String("command", command),
+					zap.Strings("args", args),
+					zap.String("stdout", stdoutStr),
+					zap.String("stderr", stderrStr),
+					zap.Error(err))
+			}
+			return stderrStr, fmt.Errorf("command execution failed: %w: %s", err, stderrStr)
+		}
+		if e.logger != nil {
+			e.logger.Debug("Command execution failed",
 				zap.String("command", command),
 				zap.Strings("args", args),
 				zap.String("stdout", stdoutStr),
-				zap.String("stderr", stderrStr),
-				zap.Error(err),
-			)
+				zap.Error(err))
 		}
-
-		// Return error but let upper layers handle it appropriately
-		return stderrStr, fmt.Errorf("command execution failed: %w: %s", err, stderrStr)
+		return stderrStr, fmt.Errorf("command execution failed: %w", err)
 	}
 
 	return stdoutStr, nil

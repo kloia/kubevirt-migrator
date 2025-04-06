@@ -124,7 +124,7 @@ func runInit(cmd *cobra.Command, logger *zap.Logger) error {
 	sshMgr := replication.NewSSHManager(exec, logger)
 
 	// Create sync manager
-	syncMgr := replication.NewSyncManager(exec, logger, sshMgr, tmplMgr)
+	syncMgr := replication.NewSyncManager(exec, logger, sshMgr, tmplMgr, srcClient, dstClient)
 	syncMgr.SetSyncTool(syncTool)
 
 	// Check VM status

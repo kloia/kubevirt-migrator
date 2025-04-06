@@ -18,6 +18,7 @@ type MockKubernetesClient struct {
 	CreatedCronJobs  [][]byte
 	ExecutedCommands map[string]string
 	CleanupCalls     map[string]bool
+	PodHostIPs       map[string]string
 }
 
 // NewMockKubernetesClient creates a new mock client
@@ -34,6 +35,7 @@ func NewMockKubernetesClient() *MockKubernetesClient {
 		CreatedCronJobs:  [][]byte{},
 		ExecutedCommands: make(map[string]string),
 		CleanupCalls:     make(map[string]bool),
+		PodHostIPs:       make(map[string]string),
 	}
 }
 
@@ -172,4 +174,13 @@ func (m *MockKubernetesClient) CleanupMigrationResources(vmName, namespace strin
 	key := fmt.Sprintf("%s/%s:%v", namespace, vmName, isDestination)
 	m.CleanupCalls[key] = true
 	return nil
+}
+
+// GetPodHostIP gets the host IP of a pod
+func (m *MockKubernetesClient) GetPodHostIP(podName, namespace string) (string, error) {
+	key := fmt.Sprintf("%s/%s", namespace, podName)
+	if hostIP, ok := m.PodHostIPs[key]; ok {
+		return hostIP, nil
+	}
+	return "", fmt.Errorf("pod %s not found in namespace %s", podName, namespace)
 }

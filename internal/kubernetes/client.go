@@ -18,6 +18,7 @@ type KubernetesClient interface {
 	GetPodStatus(podName, namespace string) (string, error)
 	WaitForPod(podName, namespace string, condition string, timeout time.Duration) error
 	ExecInPod(podName, namespace, command string) (string, error)
+	GetPodHostIP(podName, namespace string) (string, error)
 
 	// Service Management
 	CreateService(svcDef []byte, namespace string) error

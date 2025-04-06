@@ -2,12 +2,14 @@ package replication
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"go.uber.org/zap"
 
 	"github.com/kloia/kubevirt-migrator/internal/config"
 	"github.com/kloia/kubevirt-migrator/internal/executor"
+	"github.com/kloia/kubevirt-migrator/internal/kubernetes"
 	"github.com/kloia/kubevirt-migrator/internal/sync"
 	"github.com/kloia/kubevirt-migrator/internal/template"
 )
@@ -41,8 +43,12 @@ func TestSyncManager_SetSyncTool(t *testing.T) {
 	}
 	mockTemplateManager := &MockTemplateManager{}
 
+	// Create mock Kubernetes clients using the existing implementation
+	mockSrcClient := kubernetes.NewMockKubernetesClient()
+	mockDstClient := kubernetes.NewMockKubernetesClient()
+
 	// Create sync manager
-	syncManager := NewSyncManager(mockExecutor, logger, mockSSHManager, mockTemplateManager)
+	syncManager := NewSyncManager(mockExecutor, logger, mockSSHManager, mockTemplateManager, mockSrcClient, mockDstClient)
 
 	// Create mock sync tool
 	mockSyncTool := &sync.MockSyncCommand{
@@ -72,24 +78,19 @@ func TestSyncManager_GetDestinationInfo(t *testing.T) {
 	cfg := &config.Config{
 		VMName:        "test-vm",
 		Namespace:     "test-namespace",
-		DstKubeconfig: "dst-kubeconfig.yaml",
-		KubeCLI:       "kubectl",
+		DstKubeconfig: "test-kubeconfig.yaml",
 	}
 
-	// Create mock responses
-	mockExecutor.AddCommandResult(
-		"kubectl get svc test-vm-dst-svc -n test-namespace --kubeconfig dst-kubeconfig.yaml -o=jsonpath='{.spec.ports[0].nodePort}'",
-		"'30123'",
-		nil,
-	)
-	mockExecutor.AddCommandResult(
-		"kubectl get pod test-vm-dst-replicator -n test-namespace --kubeconfig dst-kubeconfig.yaml -o=jsonpath='{.status.hostIP}'",
-		"'192.168.1.100'",
-		nil,
-	)
+	// Create mock clients using the existing implementation
+	mockSrcClient := kubernetes.NewMockKubernetesClient()
+	mockDstClient := kubernetes.NewMockKubernetesClient()
+
+	// Configure mock responses
+	mockDstClient.NodePorts[fmt.Sprintf("%s/%s-dst-svc", cfg.Namespace, cfg.VMName)] = 30123
+	mockDstClient.PodHostIPs[fmt.Sprintf("%s/%s-dst-replicator", cfg.Namespace, cfg.VMName)] = "192.168.1.100"
 
 	// Create sync manager
-	syncManager := NewSyncManager(mockExecutor, logger, mockSSHManager, mockTemplateManager)
+	syncManager := NewSyncManager(mockExecutor, logger, mockSSHManager, mockTemplateManager, mockSrcClient, mockDstClient)
 
 	// Call the method
 	nodePort, hostIP, err := syncManager.GetDestinationInfo(cfg)
@@ -99,10 +100,17 @@ func TestSyncManager_GetDestinationInfo(t *testing.T) {
 		t.Errorf("expected no error but got: %v", err)
 	}
 	if nodePort != "30123" {
-		t.Errorf("expected nodePort '30123', got '%s'", nodePort)
+		t.Errorf("expected nodePort '30123' but got '%s'", nodePort)
 	}
 	if hostIP != "192.168.1.100" {
-		t.Errorf("expected hostIP '192.168.1.100', got '%s'", hostIP)
+		t.Errorf("expected hostIP '192.168.1.100' but got '%s'", hostIP)
+	}
+
+	// Test error handling for GetNodePort - by removing the mock entry
+	delete(mockDstClient.NodePorts, fmt.Sprintf("%s/%s-dst-svc", cfg.Namespace, cfg.VMName))
+	_, _, err = syncManager.GetDestinationInfo(cfg)
+	if err == nil {
+		t.Errorf("expected error but got nil")
 	}
 }
 
@@ -116,6 +124,10 @@ func TestSyncManager_CreateSyncCommand(t *testing.T) {
 	}
 	mockTemplateManager := &MockTemplateManager{}
 
+	// Create mock Kubernetes clients
+	mockSrcClient := kubernetes.NewMockKubernetesClient()
+	mockDstClient := kubernetes.NewMockKubernetesClient()
+
 	// Create test config
 	cfg := &config.Config{
 		VMName:        "test-vm",
@@ -127,7 +139,7 @@ func TestSyncManager_CreateSyncCommand(t *testing.T) {
 	}
 
 	// Create sync manager
-	syncManager := NewSyncManager(mockExecutor, logger, mockSSHManager, mockTemplateManager)
+	syncManager := NewSyncManager(mockExecutor, logger, mockSSHManager, mockTemplateManager, mockSrcClient, mockDstClient)
 
 	// Test with no sync tool set (should use default rclone)
 	nodePort := "30123"
@@ -164,6 +176,10 @@ func TestSyncManager_PerformFinalSync(t *testing.T) {
 	}
 	mockTemplateManager := &MockTemplateManager{}
 
+	// Create mock Kubernetes clients
+	mockSrcClient := kubernetes.NewMockKubernetesClient()
+	mockDstClient := kubernetes.NewMockKubernetesClient()
+
 	// Create test config
 	cfg := &config.Config{
 		VMName:        "test-vm",
@@ -185,7 +201,7 @@ func TestSyncManager_PerformFinalSync(t *testing.T) {
 	)
 
 	// Create sync manager
-	syncManager := NewSyncManager(mockExecutor, logger, mockSSHManager, mockTemplateManager)
+	syncManager := NewSyncManager(mockExecutor, logger, mockSSHManager, mockTemplateManager, mockSrcClient, mockDstClient)
 
 	// Call the method
 	err := syncManager.PerformFinalSync(cfg)
@@ -206,6 +222,10 @@ func TestSyncManager_SuspendCronJob(t *testing.T) {
 	}
 	mockTemplateManager := &MockTemplateManager{}
 
+	// Create mock Kubernetes clients
+	mockSrcClient := kubernetes.NewMockKubernetesClient()
+	mockDstClient := kubernetes.NewMockKubernetesClient()
+
 	// Create test config
 	cfg := &config.Config{
 		VMName:        "test-vm",
@@ -222,7 +242,7 @@ func TestSyncManager_SuspendCronJob(t *testing.T) {
 	)
 
 	// Create sync manager
-	syncManager := NewSyncManager(mockExecutor, logger, mockSSHManager, mockTemplateManager)
+	syncManager := NewSyncManager(mockExecutor, logger, mockSSHManager, mockTemplateManager, mockSrcClient, mockDstClient)
 
 	// Call the method
 	err := syncManager.SuspendCronJob(cfg)
@@ -232,8 +252,6 @@ func TestSyncManager_SuspendCronJob(t *testing.T) {
 		t.Errorf("expected no error but got: %v", err)
 	}
 }
-
-// Test with error cases
 
 func TestSyncManager_ErrorHandling(t *testing.T) {
 	// Create dependencies
@@ -247,6 +265,11 @@ func TestSyncManager_ErrorHandling(t *testing.T) {
 		RenderError: errors.New("template render error"),
 	}
 
+	// Create mock Kubernetes clients - with error responses
+	mockSrcClient := kubernetes.NewMockKubernetesClient()
+	mockDstClient := kubernetes.NewMockKubernetesClient()
+	// We don't set nodePort entry, so GetNodePort will fail
+
 	// Create test config
 	cfg := &config.Config{
 		VMName:        "test-vm",
@@ -257,15 +280,9 @@ func TestSyncManager_ErrorHandling(t *testing.T) {
 	}
 
 	// Create sync manager
-	syncManager := NewSyncManager(mockExecutor, logger, mockSSHManager, mockTemplateManager)
+	syncManager := NewSyncManager(mockExecutor, logger, mockSSHManager, mockTemplateManager, mockSrcClient, mockDstClient)
 
-	// Test GetDestinationInfo error handling
-	mockExecutor.AddCommandResult(
-		"kubectl get svc test-vm-dst-svc -n test-namespace --kubeconfig dst-kubeconfig.yaml -o=jsonpath='{.spec.ports[0].nodePort}'",
-		"",
-		errors.New("service not found"),
-	)
-
+	// Test GetDestinationInfo error handling with the mock client error
 	_, _, err := syncManager.GetDestinationInfo(cfg)
 	if err == nil {
 		t.Errorf("expected error but got nil")

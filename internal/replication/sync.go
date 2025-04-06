@@ -8,6 +8,7 @@ import (
 
 	"github.com/kloia/kubevirt-migrator/internal/config"
 	"github.com/kloia/kubevirt-migrator/internal/executor"
+	"github.com/kloia/kubevirt-migrator/internal/kubernetes"
 	"github.com/kloia/kubevirt-migrator/internal/sync"
 	"github.com/kloia/kubevirt-migrator/internal/template"
 )
@@ -26,22 +27,43 @@ type SSHManagerInterface interface {
 
 // SyncManager handles replication and synchronization
 type SyncManager struct {
-	executor executor.CommandExecutor
-	logger   *zap.Logger
-	sshMgr   SSHManagerInterface
-	tmplMgr  TemplateManager
-	syncTool sync.SyncCommand
+	executor      executor.CommandExecutor
+	logger        *zap.Logger
+	sshMgr        SSHManagerInterface
+	tmplMgr       TemplateManager
+	syncTool      sync.SyncCommand
+	mountProvider MountProvider
+	copyProvider  DataCopyProvider
+	srcClient     kubernetes.KubernetesClient
+	dstClient     kubernetes.KubernetesClient
 }
 
 // NewSyncManager creates a new synchronization manager
-func NewSyncManager(executor executor.CommandExecutor, logger *zap.Logger,
-	sshMgr SSHManagerInterface, tmplMgr TemplateManager) *SyncManager {
-	return &SyncManager{
-		executor: executor,
-		logger:   logger,
-		sshMgr:   sshMgr,
-		tmplMgr:  tmplMgr,
+func NewSyncManager(
+	executor executor.CommandExecutor,
+	logger *zap.Logger,
+	sshMgr SSHManagerInterface,
+	tmplMgr TemplateManager,
+	srcClient kubernetes.KubernetesClient,
+	dstClient kubernetes.KubernetesClient,
+) *SyncManager {
+	sm := &SyncManager{
+		executor:  executor,
+		logger:    logger,
+		sshMgr:    sshMgr,
+		tmplMgr:   tmplMgr,
+		srcClient: srcClient,
+		dstClient: dstClient,
 	}
+
+	// Set default mount provider
+	mountProvider := NewSSHFSProvider(executor, logger)
+	sm.mountProvider = mountProvider
+
+	// Set default copy provider
+	sm.copyProvider = NewSimpleBlockCopyProvider(executor, logger)
+
+	return sm
 }
 
 // SetSyncTool sets the synchronization tool
@@ -49,25 +71,30 @@ func (s *SyncManager) SetSyncTool(syncTool sync.SyncCommand) {
 	s.syncTool = syncTool
 }
 
+// SetMountProvider sets the mount provider
+func (s *SyncManager) SetMountProvider(provider MountProvider) {
+	s.mountProvider = provider
+}
+
+// SetCopyProvider sets the data copy provider
+func (s *SyncManager) SetCopyProvider(provider DataCopyProvider) {
+	s.copyProvider = provider
+}
+
 // GetDestinationInfo returns NodePort and HostIP for the destination replicator
-func (s *SyncManager) GetDestinationInfo(cfg *config.Config) (nodePort, hostIP string, err error) {
-	// Get NodePort
-	nodePort, err = s.executor.Execute(cfg.KubeCLI, "get", "svc", fmt.Sprintf("%s-dst-svc", cfg.VMName),
-		"-n", cfg.Namespace, "--kubeconfig", cfg.DstKubeconfig,
-		"-o=jsonpath='{.spec.ports[0].nodePort}'")
+func (s *SyncManager) GetDestinationInfo(cfg *config.Config) (nodePort string, hostIP string, err error) {
+	// Get NodePort using client
+	nodePortInt, err := s.dstClient.GetNodePort(fmt.Sprintf("%s-dst-svc", cfg.VMName), cfg.Namespace)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get destination NodePort: %w", err)
 	}
-	nodePort = strings.Trim(nodePort, "'")
+	nodePort = fmt.Sprintf("%d", nodePortInt)
 
-	// Get Host IP
-	hostIP, err = s.executor.Execute(cfg.KubeCLI, "get", "pod", fmt.Sprintf("%s-dst-replicator", cfg.VMName),
-		"-n", cfg.Namespace, "--kubeconfig", cfg.DstKubeconfig,
-		"-o=jsonpath='{.status.hostIP}'")
+	// Get Host IP using client
+	hostIP, err = s.dstClient.GetPodHostIP(fmt.Sprintf("%s-dst-replicator", cfg.VMName), cfg.Namespace)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get destination Host IP: %w", err)
 	}
-	hostIP = strings.Trim(hostIP, "'")
 
 	return nodePort, hostIP, nil
 }
@@ -87,15 +114,24 @@ func (s *SyncManager) PerformInitialSync(cfg *config.Config) error {
 		zap.String("nodePort", nodePort),
 		zap.String("syncTool", cfg.SyncTool))
 
-	// Execute initial sync (initial sync is still using cp command regardless of sync tool)
-	syncCmd := fmt.Sprintf("mkdir -p /data/dimg; sshfs -o StrictHostKeyChecking=no -o port=%s %s:/data/simg /data/dimg; "+
-		"cp -p --sparse=always /data/simg/disk.img /data/dimg/ & progress -m", nodePort, hostIP)
+	// Check basic connectivity first
+	if err := s.mountProvider.CheckConnectivity(cfg, hostIP, nodePort); err != nil {
+		return fmt.Errorf("connectivity check failed: %w", err)
+	}
 
-	_, err = s.executor.Execute(cfg.KubeCLI, "exec", fmt.Sprintf("%s-src-replicator", cfg.VMName),
-		"-n", cfg.Namespace, "--kubeconfig", cfg.SrcKubeconfig,
-		"--", "bash", "-c", syncCmd)
-	if err != nil {
-		return fmt.Errorf("failed to perform initial sync: %w", err)
+	// Establish mount
+	if err := s.mountProvider.Mount(cfg, hostIP, nodePort); err != nil {
+		return err
+	}
+
+	// Verify mount
+	if err := s.mountProvider.VerifyMount(cfg); err != nil {
+		return err
+	}
+
+	// Copy data using the copy provider
+	if err := s.copyProvider.CopyData(cfg); err != nil {
+		return err
 	}
 
 	return nil
