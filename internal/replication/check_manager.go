@@ -160,15 +160,11 @@ func (c *CheckManager) CheckConnectivity(cfg *config.Config) error {
 
 	err = c.mountProvider.CheckConnectivity(cfg, hostIP, nodePortStr)
 
-	// We know SSHFSProvider performs these checks, so we'll update our results based on the error message
-	tcpConnected := true
-	srcDirWritable := true
-	sshfsAvailable := true
-
 	if err != nil {
-		tcpConnected = !strings.Contains(err.Error(), "TCP connectivity test failed")
-		srcDirWritable = !strings.Contains(err.Error(), "Source directory write permission")
-		sshfsAvailable = !strings.Contains(err.Error(), "SSHFS command not available")
+		// Extract specific check failures based on error message
+		tcpConnected := !strings.Contains(err.Error(), "TCP connectivity test failed")
+		srcDirWritable := !strings.Contains(err.Error(), "Source directory write permission")
+		sshfsAvailable := !strings.Contains(err.Error(), "SSHFS command not available")
 
 		c.addCheckResult("TCP Connection", tcpConnected)
 		c.addCheckResult("Write Permissions", srcDirWritable)
