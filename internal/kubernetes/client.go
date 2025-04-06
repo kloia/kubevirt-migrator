@@ -37,4 +37,8 @@ type KubernetesClient interface {
 
 	// Cleanup Management
 	CleanupMigrationResources(vmName, namespace string, isDestination bool) error
+
+	// Resource Management
+	GetPVCSize(pvcName, namespace string) (string, error)
+	GetActualDiskUsage(vmName, namespace string) (int64, error)
 }

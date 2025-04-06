@@ -93,6 +93,10 @@ func (m *Manager) replaceVariables(content string, vars TemplateVariables) strin
 		"${SCHEDULE}":            vars.Schedule,
 		"${REPLICATION_COMMAND}": vars.ReplicationCommand,
 		"${SYNC_TOOL}":           vars.SyncTool,
+		"${CPU_LIMIT}":           vars.CPULimit,
+		"${CPU_REQUEST}":         vars.CPURequest,
+		"${MEMORY_LIMIT}":        vars.MemoryLimit,
+		"${MEMORY_REQUEST}":      vars.MemoryRequest,
 	}
 
 	for k, v := range replacements {

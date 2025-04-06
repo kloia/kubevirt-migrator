@@ -16,6 +16,7 @@ import (
 	"github.com/kloia/kubevirt-migrator/internal/executor"
 	"github.com/kloia/kubevirt-migrator/internal/kubernetes"
 	"github.com/kloia/kubevirt-migrator/internal/replication"
+	"github.com/kloia/kubevirt-migrator/internal/resource"
 	"github.com/kloia/kubevirt-migrator/internal/sync"
 	"github.com/kloia/kubevirt-migrator/internal/template"
 )
@@ -154,8 +155,11 @@ func runInit(cmd *cobra.Command, logger *zap.Logger) error {
 		return err
 	}
 
-	// Create source replicator
-	if err := createSourceReplicator(tmplMgr, cfg, logger); err != nil {
+	// Calculate dynamic resources based on VM disk usage
+	resources := calculateResources(srcClient, cfg, logger)
+
+	// Create source replicator with dynamic resources
+	if err := createSourceReplicator(tmplMgr, cfg, logger, resources); err != nil {
 		return err
 	}
 
@@ -164,8 +168,8 @@ func runInit(cmd *cobra.Command, logger *zap.Logger) error {
 		return err
 	}
 
-	// Create destination replicator
-	if err := createDestReplicator(tmplMgr, cfg, logger); err != nil {
+	// Create destination replicator with dynamic resources
+	if err := createDestReplicator(tmplMgr, cfg, logger, resources); err != nil {
 		return err
 	}
 
@@ -195,6 +199,54 @@ func runInit(cmd *cobra.Command, logger *zap.Logger) error {
 
 	logger.Info("Migration initialization complete")
 	return nil
+}
+
+// calculateResources calculates appropriate resources based on VM disk usage
+func calculateResources(srcClient kubernetes.KubernetesClient, cfg *config.Config, logger *zap.Logger) template.TemplateVariables {
+	// Create resource calculator
+	calculator := resource.NewResourceCalculator(logger)
+
+	// Default resources as fallback
+	defaultResources := calculator.GetDefaultResources()
+
+	// Try to get the actual disk usage
+	resources := defaultResources
+	usedBytes, err := srcClient.GetActualDiskUsage(cfg.VMName, cfg.Namespace)
+
+	if err == nil {
+		// If successful, calculate resources based on usage
+		resources, err = calculator.CalculateResourcesFromUsage(usedBytes)
+		if err != nil {
+			logger.Warn("Failed to calculate resources from disk usage, using defaults",
+				zap.Error(err))
+			resources = defaultResources
+		}
+	} else {
+		// If unsuccessful, fall back to PVC size
+		logger.Warn("Could not get actual disk usage, falling back to PVC size",
+			zap.Error(err))
+
+		pvcSize, pvcErr := srcClient.GetPVCSize(cfg.VMName, cfg.Namespace)
+		if pvcErr == nil {
+			resources, pvcErr = calculator.FallbackToPVCSize(pvcSize)
+			if pvcErr != nil {
+				logger.Warn("Failed to calculate resources from PVC size, using defaults",
+					zap.Error(pvcErr))
+				resources = defaultResources
+			}
+		} else {
+			logger.Warn("Could not get PVC size, using default resources",
+				zap.Error(pvcErr))
+		}
+	}
+
+	// Return template variables with the calculated resources
+	return template.TemplateVariables{
+		CPULimit:      resources.CPULimit,
+		CPURequest:    resources.CPURequest,
+		MemoryLimit:   resources.MemoryLimit,
+		MemoryRequest: resources.MemoryRequest,
+	}
 }
 
 // createDestVM creates destination VM by importing from source
@@ -334,19 +386,32 @@ func createPodAndWait(tmplMgr *template.Manager, cfg *config.Config, logger *zap
 	return nil
 }
 
-func createSourceReplicator(tmplMgr *template.Manager, cfg *config.Config, logger *zap.Logger) error {
-	return createPodAndWait(tmplMgr, cfg, logger, true, template.SourceReplicator, template.TemplateVariables{
-		VMName:    cfg.VMName,
-		Namespace: cfg.Namespace,
-	})
+func createSourceReplicator(tmplMgr *template.Manager, cfg *config.Config, logger *zap.Logger, resources template.TemplateVariables) error {
+	// Combine basic variables with resource variables
+	vars := template.TemplateVariables{
+		VMName:        cfg.VMName,
+		Namespace:     cfg.Namespace,
+		CPULimit:      resources.CPULimit,
+		CPURequest:    resources.CPURequest,
+		MemoryLimit:   resources.MemoryLimit,
+		MemoryRequest: resources.MemoryRequest,
+	}
+
+	return createPodAndWait(tmplMgr, cfg, logger, true, template.SourceReplicator, vars)
 }
 
-func createDestReplicator(tmplMgr *template.Manager, cfg *config.Config, logger *zap.Logger) error {
-	// First create replicator pod
-	err := createPodAndWait(tmplMgr, cfg, logger, false, template.DestReplicator, template.TemplateVariables{
-		VMName:    cfg.VMName,
-		Namespace: cfg.Namespace,
-	})
+func createDestReplicator(tmplMgr *template.Manager, cfg *config.Config, logger *zap.Logger, resources template.TemplateVariables) error {
+	// First create replicator pod with dynamic resources
+	vars := template.TemplateVariables{
+		VMName:        cfg.VMName,
+		Namespace:     cfg.Namespace,
+		CPULimit:      resources.CPULimit,
+		CPURequest:    resources.CPURequest,
+		MemoryLimit:   resources.MemoryLimit,
+		MemoryRequest: resources.MemoryRequest,
+	}
+
+	err := createPodAndWait(tmplMgr, cfg, logger, false, template.DestReplicator, vars)
 	if err != nil {
 		return err
 	}

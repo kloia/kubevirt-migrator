@@ -9,6 +9,7 @@ import (
 	"github.com/kloia/kubevirt-migrator/internal/config"
 	"github.com/kloia/kubevirt-migrator/internal/executor"
 	"github.com/kloia/kubevirt-migrator/internal/kubernetes"
+	"github.com/kloia/kubevirt-migrator/internal/resource"
 	"github.com/kloia/kubevirt-migrator/internal/sync"
 	"github.com/kloia/kubevirt-migrator/internal/template"
 )
@@ -288,19 +289,60 @@ func (s *SyncManager) SetupCronJob(cfg *config.Config) error {
 		return fmt.Errorf("failed to create replication command: %w", err)
 	}
 
-	// Create CronJob using template
+	// Get resource requirements from the resource calculator
+	calculator := resource.NewResourceCalculator(s.logger)
+	defaultResources := calculator.GetDefaultResources()
+
+	// Try to get actual disk usage from source client
+	usedBytes, err := s.srcClient.GetActualDiskUsage(cfg.VMName, cfg.Namespace)
+	resources := defaultResources
+
+	if err == nil {
+		// Calculate resources based on actual disk usage
+		resources, err = calculator.CalculateResourcesFromUsage(usedBytes)
+		if err != nil {
+			s.logger.Warn("Failed to calculate resources from disk usage for cronjob, using defaults",
+				zap.Error(err))
+			resources = defaultResources
+		}
+	} else {
+		// Fall back to PVC size
+		s.logger.Warn("Could not get actual disk usage for cronjob, falling back to PVC size",
+			zap.Error(err))
+
+		pvcSize, pvcErr := s.srcClient.GetPVCSize(cfg.VMName, cfg.Namespace)
+		if pvcErr == nil {
+			resources, pvcErr = calculator.FallbackToPVCSize(pvcSize)
+			if pvcErr != nil {
+				s.logger.Warn("Failed to calculate resources from PVC size for cronjob, using defaults",
+					zap.Error(pvcErr))
+			}
+		} else {
+			s.logger.Warn("Could not get PVC size for cronjob, using default resources",
+				zap.Error(pvcErr))
+		}
+	}
+
+	// Create CronJob using template with resource requirements
 	err = s.tmplMgr.RenderAndApply(template.ReplicationJob, template.TemplateVariables{
 		VMName:             cfg.VMName,
 		Namespace:          cfg.Namespace,
 		Schedule:           cfg.ReplicationSchedule, // Use the configured schedule
 		ReplicationCommand: replicationCmd,
 		SyncTool:           cfg.SyncTool,
+		CPULimit:           resources.CPULimit,
+		CPURequest:         resources.CPURequest,
+		MemoryLimit:        resources.MemoryLimit,
+		MemoryRequest:      resources.MemoryRequest,
 	}, cfg.SrcKubeconfig)
 	if err != nil {
 		return fmt.Errorf("failed to create cronjob: %w", err)
 	}
 
-	s.logger.Info("Replication cronjob created successfully", zap.String("schedule", cfg.ReplicationSchedule))
+	s.logger.Info("Replication cronjob created successfully",
+		zap.String("schedule", cfg.ReplicationSchedule),
+		zap.String("cpuLimit", resources.CPULimit),
+		zap.String("memoryLimit", resources.MemoryLimit))
 	return nil
 }
 

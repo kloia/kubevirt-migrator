@@ -17,9 +17,12 @@ spec:
               securityContext:
                 privileged: true
               resources:
+                limits:
+                  cpu: ${CPU_LIMIT}
+                  memory: ${MEMORY_LIMIT}
                 requests:
-                  cpu: 1000m
-                  memory: 2Gi
+                  cpu: ${CPU_REQUEST}
+                  memory: ${MEMORY_REQUEST}
               command:
                 - /bin/sh
                 - -c

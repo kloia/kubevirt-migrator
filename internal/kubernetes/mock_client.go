@@ -184,3 +184,13 @@ func (m *MockKubernetesClient) GetPodHostIP(podName, namespace string) (string, 
 	}
 	return "", fmt.Errorf("pod %s not found in namespace %s", podName, namespace)
 }
+
+// GetPVCSize retrieves the size of a PVC
+func (m *MockKubernetesClient) GetPVCSize(pvcName, namespace string) (string, error) {
+	return "10Gi", nil // Return a fixed size for testing
+}
+
+// GetActualDiskUsage retrieves the actual used space for a VM disk
+func (m *MockKubernetesClient) GetActualDiskUsage(vmName, namespace string) (int64, error) {
+	return 1024 * 1024 * 1024 * 2, nil // Return 2GB for testing
+}

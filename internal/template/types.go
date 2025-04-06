@@ -30,4 +30,9 @@ type TemplateVariables struct {
 	ReplicationCommand string
 	// SyncTool is the replication tool to use (rclone, rsync)
 	SyncTool string
+	// CPU and memory resource fields for dynamic resource allocation
+	CPULimit      string
+	CPURequest    string
+	MemoryLimit   string
+	MemoryRequest string
 }

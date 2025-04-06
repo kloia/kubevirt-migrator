@@ -10,8 +10,11 @@ spec:
       name: dst-repl
       resources:
         limits:
-          cpu: 1
-          memory: 2Gi
+          cpu: ${CPU_LIMIT}
+          memory: ${MEMORY_LIMIT}
+        requests:
+          cpu: ${CPU_REQUEST}
+          memory: ${MEMORY_REQUEST}
       securityContext:
         privileged: true
       volumeMounts:
