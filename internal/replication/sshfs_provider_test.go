@@ -78,7 +78,7 @@ func TestSSHFSProvider_CheckConnectivity(t *testing.T) {
 				)
 			},
 			expectError:   true,
-			errorContains: "source directory permission check failed",
+			errorContains: "source directory write permission check failed",
 		},
 		{
 			name:    "sshfs command not available",
@@ -104,7 +104,7 @@ func TestSSHFSProvider_CheckConnectivity(t *testing.T) {
 				)
 			},
 			expectError:   true,
-			errorContains: "sshfs command not available",
+			errorContains: "SSHFS command not available in the replicator pod",
 		},
 	}
 
