@@ -39,6 +39,9 @@ func newCheckCmd(logger *zap.Logger) *cobra.Command {
 	cmd.Flags().String("kubecli", "oc", "Kubernetes CLI to use (oc, kubectl)")
 	cmd.Flags().String("sync-tool", "rclone", "Synchronization tool to use (rclone, rsync)")
 
+	// Add the replication schedule flag
+	cmd.Flags().String("replication-schedule", "*/15 * * * *", "Cron schedule for replication (default: every 15 minutes)")
+
 	// Mark required flags
 	if err := cmd.MarkFlagRequired("vm-name"); err != nil {
 		logger.Error("Failed to mark flag as required", zap.String("flag", "vm-name"), zap.Error(err))
@@ -75,6 +78,9 @@ func newCheckCmd(logger *zap.Logger) *cobra.Command {
 	if err := viper.BindPFlag("sync-tool", cmd.Flags().Lookup("sync-tool")); err != nil {
 		logger.Error("Failed to bind flag", zap.String("flag", "sync-tool"), zap.Error(err))
 	}
+	if err := viper.BindPFlag("replication-schedule", cmd.Flags().Lookup("replication-schedule")); err != nil {
+		logger.Error("Failed to bind flag", zap.String("flag", "replication-schedule"), zap.Error(err))
+	}
 
 	return cmd
 }
@@ -94,7 +100,8 @@ func runCheck(cmd *cobra.Command, logger *zap.Logger) error {
 		zap.String("dstKubeconfig", cfg.DstKubeconfig),
 		zap.String("kubeCLI", cfg.KubeCLI),
 		zap.Int("sshPort", cfg.SSHPort),
-		zap.String("syncTool", cfg.SyncTool))
+		zap.String("syncTool", cfg.SyncTool),
+		zap.String("replicationSchedule", cfg.ReplicationSchedule))
 
 	// Set up command executor
 	cmdExec := executor.NewShellExecutor(logger)

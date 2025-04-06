@@ -179,7 +179,8 @@ func (s *SyncManager) SetupCronJob(cfg *config.Config) error {
 	s.logger.Info("Setting up replication cronjob",
 		zap.String("vm", cfg.VMName),
 		zap.String("kubeCLI", cfg.KubeCLI),
-		zap.String("syncTool", cfg.SyncTool))
+		zap.String("syncTool", cfg.SyncTool),
+		zap.String("schedule", cfg.ReplicationSchedule))
 
 	// Get NodePort and Host IP
 	nodePort, hostIP, err := s.GetDestinationInfo(cfg)
@@ -197,7 +198,7 @@ func (s *SyncManager) SetupCronJob(cfg *config.Config) error {
 	err = s.tmplMgr.RenderAndApply(template.ReplicationJob, template.TemplateVariables{
 		VMName:             cfg.VMName,
 		Namespace:          cfg.Namespace,
-		Schedule:           "*/15 * * * *", // Every 15 minutes
+		Schedule:           cfg.ReplicationSchedule, // Use the configured schedule
 		ReplicationCommand: replicationCmd,
 		SyncTool:           cfg.SyncTool,
 	}, cfg.SrcKubeconfig)
@@ -205,7 +206,7 @@ func (s *SyncManager) SetupCronJob(cfg *config.Config) error {
 		return fmt.Errorf("failed to create cronjob: %w", err)
 	}
 
-	s.logger.Info("Replication cronjob created successfully")
+	s.logger.Info("Replication cronjob created successfully", zap.String("schedule", cfg.ReplicationSchedule))
 	return nil
 }
 

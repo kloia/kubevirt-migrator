@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -17,8 +18,9 @@ type Config struct {
 	SSHPort       int
 
 	// New fields
-	KubeCLI  string // "oc", "kubectl"
-	SyncTool string // "rclone", "rsync"
+	KubeCLI             string // "oc", "kubectl"
+	SyncTool            string // "rclone", "rsync"
+	ReplicationSchedule string // Cron schedule for replication
 }
 
 // Validate checks if the configuration is valid
@@ -44,6 +46,20 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("sync-tool must be 'rclone' or 'rsync'")
 	}
 
+	// Validate cron schedule format if provided
+	if c.ReplicationSchedule != "" {
+		// Simple regex for basic cron format validation
+		// This checks for 5 fields separated by spaces
+		cronRegex := `^(\S+\s+){4}\S+$`
+		match, err := regexp.MatchString(cronRegex, c.ReplicationSchedule)
+		if err != nil {
+			return fmt.Errorf("error validating replication schedule: %w", err)
+		}
+		if !match {
+			return fmt.Errorf("invalid cron schedule format: %s. Must be in cron format with 5 fields (e.g. '*/15 * * * *')", c.ReplicationSchedule)
+		}
+	}
+
 	return nil
 }
 
@@ -61,8 +77,9 @@ func LoadConfig() (*Config, error) {
 		SSHPort:       viper.GetInt("ssh-port"),
 
 		// New fields with defaults
-		KubeCLI:  viper.GetString("kubecli"),
-		SyncTool: viper.GetString("sync-tool"),
+		KubeCLI:             viper.GetString("kubecli"),
+		SyncTool:            viper.GetString("sync-tool"),
+		ReplicationSchedule: viper.GetString("replication-schedule"),
 	}
 
 	// Set defaults
@@ -77,6 +94,9 @@ func LoadConfig() (*Config, error) {
 	}
 	if c.SyncTool == "" {
 		c.SyncTool = "rclone" // Default to rclone
+	}
+	if c.ReplicationSchedule == "" {
+		c.ReplicationSchedule = "*/15 * * * *" // Default to every 15 minutes
 	}
 
 	return c, c.Validate()
@@ -125,12 +145,20 @@ func ParseInitConfig(cmd *cobra.Command) (*Config, error) {
 		return nil, fmt.Errorf("error getting sync-tool: %w", err)
 	}
 
+	cfg.ReplicationSchedule, err = cmd.Flags().GetString("replication-schedule")
+	if err != nil {
+		return nil, fmt.Errorf("error getting replication-schedule: %w", err)
+	}
+
 	// Set defaults
 	if cfg.KubeCLI == "" {
 		cfg.KubeCLI = "oc" // Default to OpenShift CLI
 	}
 	if cfg.SyncTool == "" {
 		cfg.SyncTool = "rclone" // Default to rclone
+	}
+	if cfg.ReplicationSchedule == "" {
+		cfg.ReplicationSchedule = "*/15 * * * *" // Default to every 15 minutes
 	}
 
 	return cfg, cfg.Validate()
@@ -181,6 +209,7 @@ func ParseMigrateConfig(cmd *cobra.Command) (*Config, error) {
 	if cfg.SyncTool == "" {
 		cfg.SyncTool = "rclone" // Default to rclone
 	}
+	// No need to set ReplicationSchedule for migrate command
 
 	return cfg, cfg.Validate()
 }

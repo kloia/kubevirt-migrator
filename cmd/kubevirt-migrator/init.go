@@ -41,6 +41,9 @@ func newInitCmd(logger *zap.Logger) *cobra.Command {
 	cmd.Flags().String("kubecli", "oc", "Kubernetes CLI to use (oc, kubectl)")
 	cmd.Flags().String("sync-tool", "rclone", "Synchronization tool to use (rclone, rsync)")
 
+	// Add the replication schedule flag
+	cmd.Flags().String("replication-schedule", "*/15 * * * *", "Cron schedule for replication (default: every 15 minutes)")
+
 	// Mark required flags
 	if err := cmd.MarkFlagRequired("vm-name"); err != nil {
 		logger.Error("Failed to mark flag as required", zap.String("flag", "vm-name"), zap.Error(err))
@@ -77,6 +80,9 @@ func newInitCmd(logger *zap.Logger) *cobra.Command {
 	if err := viper.BindPFlag("sync-tool", cmd.Flags().Lookup("sync-tool")); err != nil {
 		logger.Error("Failed to bind flag", zap.String("flag", "sync-tool"), zap.Error(err))
 	}
+	if err := viper.BindPFlag("replication-schedule", cmd.Flags().Lookup("replication-schedule")); err != nil {
+		logger.Error("Failed to bind flag", zap.String("flag", "replication-schedule"), zap.Error(err))
+	}
 
 	return cmd
 }
@@ -92,7 +98,8 @@ func runInit(cmd *cobra.Command, logger *zap.Logger) error {
 		zap.String("vm", cfg.VMName),
 		zap.String("namespace", cfg.Namespace),
 		zap.String("kubecli", cfg.KubeCLI),
-		zap.String("sync-tool", cfg.SyncTool))
+		zap.String("sync-tool", cfg.SyncTool),
+		zap.String("replication-schedule", cfg.ReplicationSchedule))
 
 	// Create command executor
 	exec := executor.NewShellExecutor(logger)
