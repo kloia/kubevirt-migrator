@@ -96,10 +96,70 @@ func (c *CheckManager) CheckConnectivity(cfg *config.Config) error {
 	// Reset check results
 	c.checkResults = make(map[string]int)
 
+	// First check if VM exists in source cluster
+	c.logger.Info("Checking if VM exists in source cluster")
+	vmStatus, err := c.srcClient.GetVMStatus(cfg.VMName, cfg.Namespace)
+	if err != nil {
+		c.logger.Error("Failed to get VM status", zap.Error(err))
+		c.markRemainingNotTested()
+		return fmt.Errorf("VM %s not found in namespace %s: %w", cfg.VMName, cfg.Namespace, err)
+	}
+	c.logger.Info("Found VM in source cluster", zap.String("status", vmStatus))
+
+	// Check if VM exists in destination cluster
+	c.logger.Info("Checking if VM exists in destination cluster")
+	destVMStatus, err := c.dstClient.GetVMStatus(cfg.VMName, cfg.Namespace)
+	if err != nil {
+		// VM doesn't exist in destination, let's create it
+		c.logger.Info("VM not found in destination cluster, creating it in halted state")
+
+		// Export VM from source cluster
+		vmDef, err := c.srcClient.ExportVM(cfg.VMName, cfg.Namespace)
+		if err != nil {
+			c.logger.Error("Failed to export VM from source cluster", zap.Error(err))
+			c.markRemainingNotTested()
+			return fmt.Errorf("failed to export VM from source cluster: %w", err)
+		}
+
+		// Import VM to destination cluster
+		err = c.dstClient.ImportVM(vmDef, cfg.Namespace)
+		if err != nil {
+			c.logger.Error("Failed to import VM to destination cluster", zap.Error(err))
+			c.markRemainingNotTested()
+			return fmt.Errorf("failed to import VM to destination cluster: %w", err)
+		}
+
+		c.logger.Info("Successfully imported VM to destination cluster")
+	} else {
+		c.logger.Info("VM already exists in destination cluster", zap.String("status", destVMStatus))
+	}
+
+	// Ensure VM is in halted state regardless of whether it was just created or already existed
+	if destVMStatus != "Stopped" {
+		c.logger.Info("Ensuring VM is in halted state")
+		err = c.dstClient.StopVM(cfg.VMName, cfg.Namespace)
+		if err != nil {
+			c.logger.Error("Failed to stop VM in destination cluster", zap.Error(err))
+			c.markRemainingNotTested()
+			return fmt.Errorf("failed to stop VM in destination cluster: %w", err)
+		}
+	}
+
+	// Wait for VM to actually reach Stopped state
+	c.logger.Info("Waiting for VM to reach Stopped state in destination cluster")
+	err = c.dstClient.WaitForVMStatus(cfg.VMName, cfg.Namespace, "Stopped", 60*time.Second)
+	if err != nil {
+		c.logger.Error("VM failed to reach Stopped state in destination cluster", zap.Error(err))
+		c.markRemainingNotTested()
+		return fmt.Errorf("VM failed to reach Stopped state in destination cluster: %w", err)
+	}
+
+	c.logger.Info("Confirmed VM is in halted state in destination cluster")
+
 	c.logger.Info("Setting up test replicator pods")
 
 	// Create replicator pods for testing
-	err := c.setupTestReplicators(cfg)
+	err = c.setupTestReplicators(cfg)
 	c.addCheckResult("Source Pod", err == nil)
 	c.addCheckResult("Destination Pod", err == nil)
 	c.addCheckResult("SSH Service", err == nil)

@@ -63,6 +63,11 @@ func (m *Manager) RenderAndApply(kind TemplateKind, vars TemplateVariables, kube
 	// 3. Replace variables in the template
 	rendered := m.replaceVariables(string(content), vars)
 
+	// Debug log for rendered template
+	m.logger.Debug("Rendered template content",
+		zap.String("kind", string(kind)),
+		zap.String("content", rendered))
+
 	// 4. Create temporary file
 	tmpFile, err := m.createTempFile(rendered)
 	if err != nil {

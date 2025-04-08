@@ -35,19 +35,25 @@ func NewBaseClient(cmdName, kubeconfig string, executor executor.CommandExecutor
 
 // GetVMStatus returns the status of a virtual machine
 func (c *BaseClient) GetVMStatus(vmName, namespace string) (string, error) {
-	args := []string{"get", "vm", vmName, "-n", namespace, "--kubeconfig", c.kubeconfig, "--no-headers"}
+	args := []string{
+		"get", "vm", vmName,
+		"-n", namespace,
+		"--kubeconfig", c.kubeconfig,
+		"-o", "jsonpath='{.status.printableStatus}'"}
 
 	output, err := c.executor.Execute(c.cmdName, args...)
 	if err != nil {
 		return "", fmt.Errorf("failed to get VM status: %w", err)
 	}
 
-	parts := strings.Fields(output)
-	if len(parts) < 2 {
-		return "", fmt.Errorf("unexpected output format: %s", output)
+	// Remove surrounding quotes if present
+	status := strings.Trim(output, "'")
+
+	if status == "" {
+		return "", fmt.Errorf("VM status is empty")
 	}
 
-	return parts[1], nil
+	return status, nil
 }
 
 // StartVM starts a virtual machine
@@ -426,8 +432,8 @@ func (c *BaseClient) WaitForVMStatus(vmName, namespace, expectedStatus string, t
 
 		c.logger.Info("VM status check",
 			zap.String("vm", vmName),
-			zap.String("current", status),
-			zap.String("expected", expectedStatus))
+			zap.String("current_status", status),
+			zap.String("expected_status", expectedStatus))
 
 		// Wait before next check
 		time.Sleep(interval)

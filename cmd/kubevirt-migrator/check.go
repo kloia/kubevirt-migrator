@@ -88,7 +88,7 @@ func newCheckCmd(logger *zap.Logger) *cobra.Command {
 // runCheck executes the connectivity check for VM migration
 func runCheck(cmd *cobra.Command, logger *zap.Logger) error {
 	// Parse configuration
-	cfg, err := config.ParseInitConfig(cmd)
+	cfg, err := config.ParseCheckConfig(cmd)
 	if err != nil {
 		return fmt.Errorf("failed to parse configuration: %w", err)
 	}

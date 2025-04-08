@@ -24,9 +24,10 @@ spec:
                   cpu: ${CPU_REQUEST}
                   memory: ${MEMORY_REQUEST}
               command:
-                - /bin/sh
+                - /bin/bash
                 - -c
-                - "${REPLICATION_COMMAND}"
+                - |
+                  echo "${REPLICATION_COMMAND}" | base64 -d | /bin/bash
               volumeMounts:
                 - mountPath: /data/simg
                   name: rootdisk

@@ -6,6 +6,8 @@ import (
 
 	"go.uber.org/zap"
 
+	"encoding/base64"
+
 	"github.com/kloia/kubevirt-migrator/internal/config"
 	"github.com/kloia/kubevirt-migrator/internal/executor"
 	"github.com/kloia/kubevirt-migrator/internal/kubernetes"
@@ -135,7 +137,7 @@ func (s *SyncManager) PerformInitialSync(cfg *config.Config) error {
 		return err
 	}
 
-	// Copy data using the copy provider
+	// // Copy data using the copy provider
 	if err := s.copyProvider.CopyData(cfg); err != nil {
 		return err
 	}
@@ -203,7 +205,7 @@ sleep 20`, nodePort, hostIP)
 
 	// Get sync options (without specifying paths - they will be dynamically generated in the script)
 	syncToolName, syncArgs := s.syncTool.GenerateSyncCommand("", "", map[string]string{
-		"checksum": "true",
+		// "checksum": "true",
 		"checkers": "8",
 	})
 
@@ -289,6 +291,14 @@ func (s *SyncManager) SetupCronJob(cfg *config.Config) error {
 		return fmt.Errorf("failed to create replication command: %w", err)
 	}
 
+	// Base64 encode the replication command
+	encodedCmd := base64.StdEncoding.EncodeToString([]byte(replicationCmd))
+
+	// Debug log for replication command
+	s.logger.Debug("Generated replication command",
+		zap.String("command", replicationCmd),
+		zap.String("encoded", encodedCmd))
+
 	// Get resource requirements from the resource calculator
 	calculator := resource.NewResourceCalculator(s.logger)
 	defaultResources := calculator.GetDefaultResources()
@@ -328,7 +338,7 @@ func (s *SyncManager) SetupCronJob(cfg *config.Config) error {
 		VMName:             cfg.VMName,
 		Namespace:          cfg.Namespace,
 		Schedule:           cfg.ReplicationSchedule, // Use the configured schedule
-		ReplicationCommand: replicationCmd,
+		ReplicationCommand: encodedCmd,
 		SyncTool:           cfg.SyncTool,
 		CPULimit:           resources.CPULimit,
 		CPURequest:         resources.CPURequest,

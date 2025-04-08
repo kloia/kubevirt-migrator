@@ -168,7 +168,7 @@ func (s *SSHFSProvider) VerifyMount(cfg *config.Config) error {
 	s.logger.Debug("Mount point content listing", zap.String("output", output))
 
 	// Verify that we can see the mounted directory contents
-	if !strings.Contains(output, "simg") {
+	if !strings.Contains(output, "disk.img") {
 		s.logger.Error("Mount verification failed: cannot find expected content",
 			zap.String("output", output))
 		return fmt.Errorf("mount verification failed: cannot access mounted content")

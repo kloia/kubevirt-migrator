@@ -168,10 +168,12 @@ func ParseInitConfig(cmd *cobra.Command) (*Config, error) {
 		return nil, fmt.Errorf("error getting replication-schedule: %w", err)
 	}
 
-	// Parse dry-run flag
-	cfg.DryRun, err = cmd.Flags().GetBool("dry-run")
-	if err != nil {
-		return nil, fmt.Errorf("error getting dry-run: %w", err)
+	// Only check for dry-run flag if it's defined
+	if cmd.Flags().Lookup("dry-run") != nil {
+		cfg.DryRun, err = cmd.Flags().GetBool("dry-run")
+		if err != nil {
+			return nil, fmt.Errorf("error getting dry-run: %w", err)
+		}
 	}
 
 	cfg.setDefaults()
@@ -183,6 +185,27 @@ func ParseMigrateConfig(cmd *cobra.Command) (*Config, error) {
 	cfg, err := parseCommonFlags(cmd)
 	if err != nil {
 		return nil, err
+	}
+
+	cfg.setDefaults()
+	return cfg, cfg.Validate()
+}
+
+// ParseCheckConfig parses the check command flags into a Config struct
+func ParseCheckConfig(cmd *cobra.Command) (*Config, error) {
+	cfg, err := parseCommonFlags(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.SSHPort, err = cmd.Flags().GetInt("ssh-port")
+	if err != nil {
+		return nil, fmt.Errorf("error getting ssh-port: %w", err)
+	}
+
+	cfg.ReplicationSchedule, err = cmd.Flags().GetString("replication-schedule")
+	if err != nil {
+		return nil, fmt.Errorf("error getting replication-schedule: %w", err)
 	}
 
 	cfg.setDefaults()
