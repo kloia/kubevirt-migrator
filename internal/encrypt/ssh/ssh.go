@@ -1,4 +1,4 @@
-package replication
+package ssh
 
 import (
 	"fmt"
@@ -12,6 +12,12 @@ import (
 	"github.com/kloia/kubevirt-migrator/internal/config"
 	"github.com/kloia/kubevirt-migrator/internal/executor"
 )
+
+// SSHManagerInterface defines the interface for SSH operations
+type SSHManagerInterface interface {
+	GenerateKeys(cfg *config.Config) error
+	SetupDestinationAuth(cfg *config.Config) error
+}
 
 // SSHManager handles SSH key operations
 type SSHManager struct {

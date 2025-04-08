@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/kloia/kubevirt-migrator/internal/config"
+	"github.com/kloia/kubevirt-migrator/internal/encrypt/ssh"
 	"github.com/kloia/kubevirt-migrator/internal/executor"
 	"github.com/kloia/kubevirt-migrator/internal/kubernetes"
 	"github.com/kloia/kubevirt-migrator/internal/replication"
@@ -117,7 +118,7 @@ func runMigrate(cmd *cobra.Command, logger *zap.Logger) error {
 	}
 
 	// Create SSH manager
-	sshMgr := replication.NewSSHManager(exec, logger)
+	sshMgr := ssh.NewSSHManager(exec, logger)
 
 	// Create sync manager
 	syncMgr := replication.NewSyncManager(exec, logger, sshMgr, tmplMgr, srcClient, dstClient)

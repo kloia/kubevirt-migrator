@@ -43,8 +43,8 @@ func TestBaseClient_GetVMStatus(t *testing.T) {
 				Output string
 				Error  error
 			}{
-				"kubectl get vm test-vm -n test-namespace --kubeconfig test-kubeconfig.yaml --no-headers": {
-					Output: "test-vm   Running   True      1h",
+				"kubectl get vm test-vm -n test-namespace --kubeconfig test-kubeconfig.yaml -o jsonpath='{.status.printableStatus}'": {
+					Output: "'Running'",
 					Error:  nil,
 				},
 			},
@@ -61,8 +61,8 @@ func TestBaseClient_GetVMStatus(t *testing.T) {
 				Output string
 				Error  error
 			}{
-				"oc get vm test-vm -n test-namespace --kubeconfig test-kubeconfig.yaml --no-headers": {
-					Output: "test-vm   Stopped   False     1h",
+				"oc get vm test-vm -n test-namespace --kubeconfig test-kubeconfig.yaml -o jsonpath='{.status.printableStatus}'": {
+					Output: "'Stopped'",
 					Error:  nil,
 				},
 			},
@@ -79,7 +79,7 @@ func TestBaseClient_GetVMStatus(t *testing.T) {
 				Output string
 				Error  error
 			}{
-				"kubectl get vm test-vm -n test-namespace --kubeconfig test-kubeconfig.yaml --no-headers": {
+				"kubectl get vm test-vm -n test-namespace --kubeconfig test-kubeconfig.yaml -o jsonpath='{.status.printableStatus}'": {
 					Output: "",
 					Error:  errors.New("command execution failed"),
 				},
@@ -97,8 +97,8 @@ func TestBaseClient_GetVMStatus(t *testing.T) {
 				Output string
 				Error  error
 			}{
-				"kubectl get vm test-vm -n test-namespace --kubeconfig test-kubeconfig.yaml --no-headers": {
-					Output: "invalid-format",
+				"kubectl get vm test-vm -n test-namespace --kubeconfig test-kubeconfig.yaml -o jsonpath='{.status.printableStatus}'": {
+					Output: "''",
 					Error:  nil,
 				},
 			},
@@ -136,7 +136,7 @@ func TestBaseClient_GetVMStatus(t *testing.T) {
 			}
 
 			// Verify the correct command was executed
-			expectedCmd := tt.kubeCLI + " get vm " + tt.vmName + " -n " + tt.namespace + " --kubeconfig " + tt.kubeconfig + " --no-headers"
+			expectedCmd := tt.kubeCLI + " get vm " + tt.vmName + " -n " + tt.namespace + " --kubeconfig " + tt.kubeconfig + " -o jsonpath='{.status.printableStatus}'"
 			found := false
 			for _, cmd := range mockExecutor.ExecutedCommands {
 				if cmd == expectedCmd {
@@ -396,14 +396,14 @@ func (m *customMockExecutor) Execute(command string, args ...string) (string, er
 	}
 
 	// Custom response for VM status query
-	if strings.Contains(cmdString, "get vm") && strings.Contains(cmdString, "--no-headers") {
+	if strings.Contains(cmdString, "get vm") && strings.Contains(cmdString, "jsonpath='{.status.printableStatus}'") {
 		m.callCounts[cmdString]++
 		count := m.callCounts[cmdString]
 
 		if count == 1 {
-			return "test-vm   Pending   False     0s", nil
+			return "'Pending'", nil
 		}
-		return "test-vm   Running   True      5s", nil
+		return "'Running'", nil
 	}
 
 	return "", fmt.Errorf("unexpected command: %s", cmdString)

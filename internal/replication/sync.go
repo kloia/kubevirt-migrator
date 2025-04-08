@@ -9,34 +9,25 @@ import (
 	"encoding/base64"
 
 	"github.com/kloia/kubevirt-migrator/internal/config"
+	"github.com/kloia/kubevirt-migrator/internal/encrypt/ssh"
 	"github.com/kloia/kubevirt-migrator/internal/executor"
 	"github.com/kloia/kubevirt-migrator/internal/kubernetes"
 	"github.com/kloia/kubevirt-migrator/internal/resource"
+	"github.com/kloia/kubevirt-migrator/internal/storage/copy"
+	"github.com/kloia/kubevirt-migrator/internal/storage/mount"
 	"github.com/kloia/kubevirt-migrator/internal/sync"
 	"github.com/kloia/kubevirt-migrator/internal/template"
 )
-
-// TemplateManager defines the interface for template operations
-type TemplateManager interface {
-	RenderAndApply(kind template.TemplateKind, vars template.TemplateVariables, kubeconfig string) error
-	SetKubeCLI(kubeCLI string)
-}
-
-// SSHManagerInterface defines the interface for SSH operations
-type SSHManagerInterface interface {
-	GenerateKeys(cfg *config.Config) error
-	SetupDestinationAuth(cfg *config.Config) error
-}
 
 // SyncManager handles replication and synchronization
 type SyncManager struct {
 	executor      executor.CommandExecutor
 	logger        *zap.Logger
-	sshMgr        SSHManagerInterface
-	tmplMgr       TemplateManager
+	sshMgr        ssh.SSHManagerInterface
+	tmplMgr       template.TemplateManager
 	syncTool      sync.SyncCommand
-	mountProvider MountProvider
-	copyProvider  DataCopyProvider
+	mountProvider mount.MountProvider
+	copyProvider  copy.DataCopyProvider
 	srcClient     kubernetes.KubernetesClient
 	dstClient     kubernetes.KubernetesClient
 }
@@ -45,8 +36,8 @@ type SyncManager struct {
 func NewSyncManager(
 	executor executor.CommandExecutor,
 	logger *zap.Logger,
-	sshMgr SSHManagerInterface,
-	tmplMgr TemplateManager,
+	sshMgr ssh.SSHManagerInterface,
+	tmplMgr template.TemplateManager,
 	srcClient kubernetes.KubernetesClient,
 	dstClient kubernetes.KubernetesClient,
 ) *SyncManager {
@@ -60,11 +51,11 @@ func NewSyncManager(
 	}
 
 	// Set default mount provider
-	mountProvider := NewSSHFSProvider(executor, logger)
+	mountProvider := mount.NewSSHFSProvider(executor, logger)
 	sm.mountProvider = mountProvider
 
 	// Set default copy provider
-	sm.copyProvider = NewSimpleBlockCopyProvider(executor, logger)
+	sm.copyProvider = copy.NewSimpleBlockCopyProvider(executor, logger)
 
 	return sm
 }
@@ -75,12 +66,12 @@ func (s *SyncManager) SetSyncTool(syncTool sync.SyncCommand) {
 }
 
 // SetMountProvider sets the mount provider
-func (s *SyncManager) SetMountProvider(provider MountProvider) {
+func (s *SyncManager) SetMountProvider(provider mount.MountProvider) {
 	s.mountProvider = provider
 }
 
 // SetCopyProvider sets the data copy provider
-func (s *SyncManager) SetCopyProvider(provider DataCopyProvider) {
+func (s *SyncManager) SetCopyProvider(provider copy.DataCopyProvider) {
 	s.copyProvider = provider
 }
 

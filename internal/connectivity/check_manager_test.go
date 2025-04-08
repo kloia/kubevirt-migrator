@@ -1,4 +1,4 @@
-package replication
+package connectivity
 
 import (
 	"errors"
@@ -103,6 +103,10 @@ func TestCheckManager_CheckConnectivity(t *testing.T) {
 				mountProvider.verifyMountError = nil
 				mountProvider.unmountError = nil
 
+				// Setup VM statuses
+				srcClient.VMStatuses["test-namespace/test-vm"] = "Running"
+				dstClient.VMStatuses["test-namespace/test-vm"] = "Stopped"
+
 				// Setup Kubernetes clients
 				dstClient.NodePorts["test-namespace/test-vm-dst-svc"] = 30123
 				dstClient.PodHostIPs["test-namespace/test-vm-dst-replicator"] = "192.168.1.100"
@@ -118,6 +122,10 @@ func TestCheckManager_CheckConnectivity(t *testing.T) {
 			name:    "template rendering failure",
 			kubeCLI: "kubectl",
 			setupMocks: func(tmplMgr *mockTemplateManager, sshMgr *mockSSHManager, mountProvider *mockMountProvider, srcClient *kubernetes.MockKubernetesClient, dstClient *kubernetes.MockKubernetesClient) {
+				// Setup VM statuses
+				srcClient.VMStatuses["test-namespace/test-vm"] = "Running"
+				dstClient.VMStatuses["test-namespace/test-vm"] = "Stopped"
+
 				tmplMgr.renderError = errors.New("template error")
 			},
 			expectError:   true,
@@ -127,6 +135,10 @@ func TestCheckManager_CheckConnectivity(t *testing.T) {
 			name:    "ssh key generation failure",
 			kubeCLI: "kubectl",
 			setupMocks: func(tmplMgr *mockTemplateManager, sshMgr *mockSSHManager, mountProvider *mockMountProvider, srcClient *kubernetes.MockKubernetesClient, dstClient *kubernetes.MockKubernetesClient) {
+				// Setup VM statuses
+				srcClient.VMStatuses["test-namespace/test-vm"] = "Running"
+				dstClient.VMStatuses["test-namespace/test-vm"] = "Stopped"
+
 				tmplMgr.renderError = nil
 				sshMgr.generateKeysError = errors.New("ssh key error")
 
@@ -141,6 +153,10 @@ func TestCheckManager_CheckConnectivity(t *testing.T) {
 			name:    "destination auth setup failure",
 			kubeCLI: "kubectl",
 			setupMocks: func(tmplMgr *mockTemplateManager, sshMgr *mockSSHManager, mountProvider *mockMountProvider, srcClient *kubernetes.MockKubernetesClient, dstClient *kubernetes.MockKubernetesClient) {
+				// Setup VM statuses
+				srcClient.VMStatuses["test-namespace/test-vm"] = "Running"
+				dstClient.VMStatuses["test-namespace/test-vm"] = "Stopped"
+
 				tmplMgr.renderError = nil
 				sshMgr.generateKeysError = nil
 				sshMgr.setupDestinationAuthError = errors.New("auth error")
@@ -156,6 +172,10 @@ func TestCheckManager_CheckConnectivity(t *testing.T) {
 			name:    "node port lookup failure",
 			kubeCLI: "kubectl",
 			setupMocks: func(tmplMgr *mockTemplateManager, sshMgr *mockSSHManager, mountProvider *mockMountProvider, srcClient *kubernetes.MockKubernetesClient, dstClient *kubernetes.MockKubernetesClient) {
+				// Setup VM statuses
+				srcClient.VMStatuses["test-namespace/test-vm"] = "Running"
+				dstClient.VMStatuses["test-namespace/test-vm"] = "Stopped"
+
 				tmplMgr.renderError = nil
 				sshMgr.generateKeysError = nil
 				sshMgr.setupDestinationAuthError = nil
@@ -172,6 +192,10 @@ func TestCheckManager_CheckConnectivity(t *testing.T) {
 			name:    "connectivity check failure",
 			kubeCLI: "kubectl",
 			setupMocks: func(tmplMgr *mockTemplateManager, sshMgr *mockSSHManager, mountProvider *mockMountProvider, srcClient *kubernetes.MockKubernetesClient, dstClient *kubernetes.MockKubernetesClient) {
+				// Setup VM statuses
+				srcClient.VMStatuses["test-namespace/test-vm"] = "Running"
+				dstClient.VMStatuses["test-namespace/test-vm"] = "Stopped"
+
 				tmplMgr.renderError = nil
 				sshMgr.generateKeysError = nil
 				sshMgr.setupDestinationAuthError = nil
@@ -190,6 +214,10 @@ func TestCheckManager_CheckConnectivity(t *testing.T) {
 			name:    "mount failure",
 			kubeCLI: "kubectl",
 			setupMocks: func(tmplMgr *mockTemplateManager, sshMgr *mockSSHManager, mountProvider *mockMountProvider, srcClient *kubernetes.MockKubernetesClient, dstClient *kubernetes.MockKubernetesClient) {
+				// Setup VM statuses
+				srcClient.VMStatuses["test-namespace/test-vm"] = "Running"
+				dstClient.VMStatuses["test-namespace/test-vm"] = "Stopped"
+
 				tmplMgr.renderError = nil
 				sshMgr.generateKeysError = nil
 				sshMgr.setupDestinationAuthError = nil
@@ -209,6 +237,10 @@ func TestCheckManager_CheckConnectivity(t *testing.T) {
 			name:    "mount verification failure",
 			kubeCLI: "kubectl",
 			setupMocks: func(tmplMgr *mockTemplateManager, sshMgr *mockSSHManager, mountProvider *mockMountProvider, srcClient *kubernetes.MockKubernetesClient, dstClient *kubernetes.MockKubernetesClient) {
+				// Setup VM statuses
+				srcClient.VMStatuses["test-namespace/test-vm"] = "Running"
+				dstClient.VMStatuses["test-namespace/test-vm"] = "Stopped"
+
 				tmplMgr.renderError = nil
 				sshMgr.generateKeysError = nil
 				sshMgr.setupDestinationAuthError = nil
@@ -229,6 +261,10 @@ func TestCheckManager_CheckConnectivity(t *testing.T) {
 			name:    "unmount failure (ignored)",
 			kubeCLI: "kubectl",
 			setupMocks: func(tmplMgr *mockTemplateManager, sshMgr *mockSSHManager, mountProvider *mockMountProvider, srcClient *kubernetes.MockKubernetesClient, dstClient *kubernetes.MockKubernetesClient) {
+				// Setup VM statuses
+				srcClient.VMStatuses["test-namespace/test-vm"] = "Running"
+				dstClient.VMStatuses["test-namespace/test-vm"] = "Stopped"
+
 				tmplMgr.renderError = nil
 				sshMgr.generateKeysError = nil
 				sshMgr.setupDestinationAuthError = nil
@@ -305,6 +341,8 @@ func TestCheckManager_SetupTestReplicators(t *testing.T) {
 			kubeCLI: "kubectl",
 			mockFunc: func(mockTmplMgr *mockTemplateManager, mockSrcClient *kubernetes.MockKubernetesClient, mockDstClient *kubernetes.MockKubernetesClient) {
 				mockTmplMgr.renderError = nil
+				mockSrcClient.VMStatuses["test-namespace/test-vm"] = "Running"
+				mockDstClient.VMStatuses["test-namespace/test-vm"] = "Stopped"
 				mockSrcClient.PodStatuses["test-namespace/test-vm-src-replicator"] = "ready"
 				mockDstClient.PodStatuses["test-namespace/test-vm-dst-replicator"] = "ready"
 			},
@@ -315,6 +353,8 @@ func TestCheckManager_SetupTestReplicators(t *testing.T) {
 			kubeCLI: "kubectl",
 			mockFunc: func(mockTmplMgr *mockTemplateManager, mockSrcClient *kubernetes.MockKubernetesClient, mockDstClient *kubernetes.MockKubernetesClient) {
 				mockTmplMgr.renderError = errors.New("render error")
+				mockSrcClient.VMStatuses["test-namespace/test-vm"] = "Running"
+				mockDstClient.VMStatuses["test-namespace/test-vm"] = "Stopped"
 			},
 			wantErr: true,
 		},

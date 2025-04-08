@@ -12,6 +12,12 @@ import (
 	"github.com/kloia/kubevirt-migrator/internal/executor"
 )
 
+// TemplateManager defines the interface for template operations
+type TemplateManager interface {
+	RenderAndApply(kind TemplateKind, vars TemplateVariables, kubeconfig string) error
+	SetKubeCLI(kubeCLI string)
+}
+
 // Manager handles the templates
 type Manager struct {
 	executor executor.CommandExecutor

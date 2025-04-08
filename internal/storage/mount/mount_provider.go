@@ -1,4 +1,4 @@
-package replication
+package mount
 
 import (
 	"github.com/kloia/kubevirt-migrator/internal/config"

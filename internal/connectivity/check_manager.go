@@ -1,4 +1,4 @@
-package replication
+package connectivity
 
 import (
 	"fmt"
@@ -8,8 +8,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/kloia/kubevirt-migrator/internal/config"
+	"github.com/kloia/kubevirt-migrator/internal/encrypt/ssh"
 	"github.com/kloia/kubevirt-migrator/internal/executor"
 	"github.com/kloia/kubevirt-migrator/internal/kubernetes"
+	"github.com/kloia/kubevirt-migrator/internal/storage/mount"
 	"github.com/kloia/kubevirt-migrator/internal/template"
 )
 
@@ -17,11 +19,11 @@ import (
 type CheckManager struct {
 	executor      executor.CommandExecutor
 	logger        *zap.Logger
-	tmplMgr       TemplateManager
-	sshMgr        SSHManagerInterface
+	tmplMgr       template.TemplateManager
+	sshMgr        ssh.SSHManagerInterface
 	srcClient     kubernetes.KubernetesClient
 	dstClient     kubernetes.KubernetesClient
-	mountProvider MountProvider
+	mountProvider mount.MountProvider
 	checkResults  map[string]int // Changed to int for three states: success(1), failure(0), not tested(-1)
 }
 
@@ -34,7 +36,7 @@ const (
 
 // NewCheckManager creates a new check manager
 func NewCheckManager(executor executor.CommandExecutor, logger *zap.Logger,
-	tmplMgr TemplateManager, sshMgr SSHManagerInterface,
+	tmplMgr template.TemplateManager, sshMgr ssh.SSHManagerInterface,
 	srcClient, dstClient kubernetes.KubernetesClient) *CheckManager {
 	return &CheckManager{
 		executor:      executor,
@@ -43,13 +45,13 @@ func NewCheckManager(executor executor.CommandExecutor, logger *zap.Logger,
 		sshMgr:        sshMgr,
 		srcClient:     srcClient,
 		dstClient:     dstClient,
-		mountProvider: NewSSHFSProvider(executor, logger),
+		mountProvider: mount.NewSSHFSProvider(executor, logger),
 		checkResults:  make(map[string]int),
 	}
 }
 
 // SetMountProvider allows injection of a specific mount provider
-func (c *CheckManager) SetMountProvider(provider MountProvider) {
+func (c *CheckManager) SetMountProvider(provider mount.MountProvider) {
 	c.mountProvider = provider
 }
 

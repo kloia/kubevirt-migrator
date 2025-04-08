@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/kloia/kubevirt-migrator/internal/config"
+	"github.com/kloia/kubevirt-migrator/internal/encrypt/ssh"
 	"github.com/kloia/kubevirt-migrator/internal/executor"
 	"github.com/kloia/kubevirt-migrator/internal/kubernetes"
 	"github.com/kloia/kubevirt-migrator/internal/sync"
@@ -37,10 +38,7 @@ func TestSyncManager_SetSyncTool(t *testing.T) {
 	// Create dependencies
 	mockExecutor := executor.NewMockCommandExecutor()
 	logger, _ := zap.NewDevelopment()
-	mockSSHManager := &SSHManager{
-		executor: mockExecutor,
-		logger:   logger,
-	}
+	mockSSHManager := ssh.NewSSHManager(mockExecutor, logger)
 	mockTemplateManager := &MockTemplateManager{}
 
 	// Create mock Kubernetes clients using the existing implementation
@@ -68,10 +66,7 @@ func TestSyncManager_GetDestinationInfo(t *testing.T) {
 	// Create dependencies
 	mockExecutor := executor.NewMockCommandExecutor()
 	logger, _ := zap.NewDevelopment()
-	mockSSHManager := &SSHManager{
-		executor: mockExecutor,
-		logger:   logger,
-	}
+	mockSSHManager := ssh.NewSSHManager(mockExecutor, logger)
 	mockTemplateManager := &MockTemplateManager{}
 
 	// Create test config
@@ -118,10 +113,7 @@ func TestSyncManager_CreateSyncCommand(t *testing.T) {
 	// Create dependencies
 	mockExecutor := executor.NewMockCommandExecutor()
 	logger, _ := zap.NewDevelopment()
-	mockSSHManager := &SSHManager{
-		executor: mockExecutor,
-		logger:   logger,
-	}
+	mockSSHManager := ssh.NewSSHManager(mockExecutor, logger)
 	mockTemplateManager := &MockTemplateManager{}
 
 	// Create mock Kubernetes clients
@@ -170,10 +162,7 @@ func TestSyncManager_PerformFinalSync(t *testing.T) {
 	// Create dependencies
 	mockExecutor := executor.NewMockCommandExecutor()
 	logger, _ := zap.NewDevelopment()
-	mockSSHManager := &SSHManager{
-		executor: mockExecutor,
-		logger:   logger,
-	}
+	mockSSHManager := ssh.NewSSHManager(mockExecutor, logger)
 	mockTemplateManager := &MockTemplateManager{}
 
 	// Create mock Kubernetes clients
@@ -216,10 +205,7 @@ func TestSyncManager_SuspendCronJob(t *testing.T) {
 	// Create dependencies
 	mockExecutor := executor.NewMockCommandExecutor()
 	logger, _ := zap.NewDevelopment()
-	mockSSHManager := &SSHManager{
-		executor: mockExecutor,
-		logger:   logger,
-	}
+	mockSSHManager := ssh.NewSSHManager(mockExecutor, logger)
 	mockTemplateManager := &MockTemplateManager{}
 
 	// Create mock Kubernetes clients
@@ -257,10 +243,7 @@ func TestSyncManager_ErrorHandling(t *testing.T) {
 	// Create dependencies
 	mockExecutor := executor.NewMockCommandExecutor()
 	logger, _ := zap.NewDevelopment()
-	mockSSHManager := &SSHManager{
-		executor: mockExecutor,
-		logger:   logger,
-	}
+	mockSSHManager := ssh.NewSSHManager(mockExecutor, logger)
 	mockTemplateManager := &MockTemplateManager{
 		RenderError: errors.New("template render error"),
 	}

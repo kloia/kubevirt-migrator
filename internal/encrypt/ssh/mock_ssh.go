@@ -1,4 +1,4 @@
-package replication
+package ssh
 
 import (
 	"github.com/kloia/kubevirt-migrator/internal/config"

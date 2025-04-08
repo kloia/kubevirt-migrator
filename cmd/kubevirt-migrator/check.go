@@ -9,9 +9,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/kloia/kubevirt-migrator/internal/config"
+	"github.com/kloia/kubevirt-migrator/internal/connectivity"
+	"github.com/kloia/kubevirt-migrator/internal/encrypt/ssh"
 	"github.com/kloia/kubevirt-migrator/internal/executor"
 	"github.com/kloia/kubevirt-migrator/internal/kubernetes"
-	"github.com/kloia/kubevirt-migrator/internal/replication"
 	"github.com/kloia/kubevirt-migrator/internal/sync"
 	"github.com/kloia/kubevirt-migrator/internal/template"
 )
@@ -112,7 +113,7 @@ func runCheck(cmd *cobra.Command, logger *zap.Logger) error {
 	logger.Debug("Template manager initialized", zap.String("kubeCLI", cfg.KubeCLI))
 
 	// Set up SSH manager
-	sshMgr := replication.NewSSHManager(cmdExec, logger)
+	sshMgr := ssh.NewSSHManager(cmdExec, logger)
 	logger.Debug("SSH manager initialized")
 
 	// Create sync tool
@@ -141,7 +142,7 @@ func runCheck(cmd *cobra.Command, logger *zap.Logger) error {
 	logger.Debug("Destination Kubernetes client created successfully")
 
 	// Create check manager
-	checkMgr := replication.NewCheckManager(cmdExec, logger, tmplMgr, sshMgr, srcClient, dstClient)
+	checkMgr := connectivity.NewCheckManager(cmdExec, logger, tmplMgr, sshMgr, srcClient, dstClient)
 	logger.Debug("Check manager created successfully")
 
 	// Run connectivity checks
@@ -168,13 +169,13 @@ func runCheck(cmd *cobra.Command, logger *zap.Logger) error {
 			var statusSymbol, statusText string
 
 			switch result {
-			case replication.CheckSuccess:
+			case connectivity.CheckSuccess:
 				statusSymbol = "✓"
 				statusText = "SUCCESS"
-			case replication.CheckFailed:
+			case connectivity.CheckFailed:
 				statusSymbol = "✗"
 				statusText = "FAILED"
-			case replication.CheckNotTested:
+			case connectivity.CheckNotTested:
 				statusSymbol = "?"
 				statusText = "NOT TESTED"
 			}
@@ -203,13 +204,13 @@ func runCheck(cmd *cobra.Command, logger *zap.Logger) error {
 		var statusSymbol, statusText string
 
 		switch result {
-		case replication.CheckSuccess:
+		case connectivity.CheckSuccess:
 			statusSymbol = "✓"
 			statusText = "SUCCESS"
-		case replication.CheckFailed:
+		case connectivity.CheckFailed:
 			statusSymbol = "✗"
 			statusText = "FAILED"
-		case replication.CheckNotTested:
+		case connectivity.CheckNotTested:
 			statusSymbol = "?"
 			statusText = "NOT TESTED"
 		}

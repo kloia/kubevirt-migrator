@@ -1,4 +1,4 @@
-package replication
+package mount
 
 import (
 	"errors"
@@ -225,7 +225,7 @@ func TestSSHFSProvider_VerifyMount(t *testing.T) {
 			setupMock: func(mock *executor.MockCommandExecutor, kubeCLI string) {
 				mock.AddCommandResult(
 					kubeCLI+" exec test-vm-src-replicator -n test-namespace --kubeconfig src-kubeconfig.yaml -- bash -c ls -la /data/dimg",
-					"total 4\ndrwxr-xr-x 2 root root 4096 Jan 1 00:00 simg\n",
+					"total 4\ndrwxr-xr-x 2 root root 4096 Jan 1 00:00 .\n-rw-r--r-- 1 root root 1073741824 Jan 1 00:00 disk.img\n",
 					nil,
 				)
 			},
