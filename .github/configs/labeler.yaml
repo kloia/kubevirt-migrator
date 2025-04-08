@@ -1,0 +1,63 @@
+cli:
+  - changed-files:
+      - any-glob-to-any-file: cmd/kubevirt-migrator/**
+
+logging:
+  - changed-files:
+      - any-glob-to-any-file: pkg/logging/**
+
+replication:
+  - changed-files:
+      - any-glob-to-any-file: internal/replication/**
+      - any-glob-to-any-file: manifests/src-repl.yaml
+      - any-glob-to-any-file: manifests/dst-repl.yaml
+      - any-glob-to-any-file: manifests/dst-repl-svc.yaml
+      - any-glob-to-any-file: manifests/src-cronjob.yaml
+
+executor:
+  - changed-files:
+      - any-glob-to-any-file: internal/executor/**
+
+config:
+  - changed-files:
+      - any-glob-to-any-file: internal/config/**
+
+templates:
+  - changed-files:
+      - any-glob-to-any-file: internal/template/**
+      - any-glob-to-any-file: templates/**
+
+version:
+  - changed-files:
+      - any-glob-to-any-file: internal/version/**
+
+docker:
+  - changed-files:
+      - any-glob-to-any-file: Dockerfiles/**
+
+manifests:
+  - changed-files:
+      - any-glob-to-any-file: manifests/**
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file: "**/*.md"
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file: "**/*_test.go"
+
+github:
+  - changed-files:
+      - any-glob-to-any-file: .github/**
+
+deps:
+  - changed-files:
+      - any-glob-to-any-file: go.mod
+      - any-glob-to-any-file: go.sum
+      
+build:
+  - changed-files:
+      - any-glob-to-any-file: Taskfile.yaml
+      - any-glob-to-any-file: .goreleaser.yml
+      - any-glob-to-any-file: .golangci.yml

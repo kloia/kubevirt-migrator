@@ -1,0 +1,125 @@
+name: Bug Report
+description: Report a bug encountered while using KubeVirt Migrator
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+        Please make sure you have searched for similar issues before creating a new one.
+
+  - type: input
+    id: version
+    attributes:
+      label: Tool Version
+      description: What version of KubeVirt Migrator are you using?
+      placeholder: "e.g., v1.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: components
+    attributes:
+      label: Affected Components
+      description: Which components are affected by this bug?
+      multiple: true
+      options:
+        - All Components (System-wide Issue)
+        - CLI (Command Line Interface)
+        - Replication (VM Disk Replication)
+        - Executor (Command Execution)
+        - Config (Configuration Management)
+        - Templates (VM Template Management)
+        - Logging (Application Logging)
+        - Docker (Container Images)
+        - Manifests (Kubernetes Resources)
+        - Documentation
+        - Build Process
+        - Version Management
+        - Error Handling & Recovery
+        - Performance & Optimization
+    validations:
+      required: true
+
+  - type: dropdown
+    id: command
+    attributes:
+      label: Command
+      description: Which command were you using when the bug occurred?
+      options:
+        - init
+        - migrate
+        - Other (specify in description)
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: |
+        Please provide the following information:
+        * OpenShift/Kubernetes version (source cluster)
+        * OpenShift/Kubernetes version (destination cluster)
+        * KubeVirt version
+        * OS (where the CLI is running)
+        * Go version (if built from source)
+      placeholder: |
+        Source Cluster: OpenShift 4.12
+        Destination Cluster: OpenShift 4.11
+        KubeVirt: v0.58.0
+        OS: Ubuntu 22.04
+        Go: 1.19
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Configure the tool with...
+        2. Run kubevirt-migrator init with these arguments...
+        3. See error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened (include screenshots if applicable)
+    validations:
+      required: true
+
+  - type: textarea
+    id: command_line
+    attributes:
+      label: Command Line Used
+      description: The exact command line that was used when the bug occurred
+      placeholder: kubevirt-migrator init --vm-name example-vm --namespace test --src-kubeconfig=/path/to/source --dst-kubeconfig=/path/to/dest
+      render: shell
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Log Output
+      description: Please copy and paste any relevant log output
+      render: shell 

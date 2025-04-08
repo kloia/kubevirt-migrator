@@ -1,9 +1,10 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: rhel9-test-22-repl-cronjob
+  name: ${VM_NAME}-repl-cronjob
+  namespace: ${NAMESPACE}
 spec:
-  schedule: "*/5 * * * *"
+  schedule: "${SCHEDULE}"
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:
@@ -16,13 +17,17 @@ spec:
               securityContext:
                 privileged: true
               resources:
+                limits:
+                  cpu: ${CPU_LIMIT}
+                  memory: ${MEMORY_LIMIT}
                 requests:
-                  cpu: 1000m
-                  memory: 2Gi
+                  cpu: ${CPU_REQUEST}
+                  memory: ${MEMORY_REQUEST}
               command:
-                - /bin/sh
+                - /bin/bash
                 - -c
-                - "mkdir /data/dimg /data/dfs /data/sfs/; sshfs -o StrictHostKeyChecking=no -o port=31951 10.1.80.249:/data/simg /data/dimg; guestmount -a /data/simg/disk.img -m /dev/sda4 --ro /data/sfs; guestmount -a /data/dimg/disk.img -m /dev/sda4 --rw /data/dfs; rclone sync --progress /data/sfs/ /data/dfs/ --skip-links --checkers 8 --contimeout 100s --timeout 300s --retries 3 --low-level-retries 10 --drive-acknowledge-abuse --stats 1s --cutoff-mode=soft; sleep 20"
+                - |
+                  echo "${REPLICATION_COMMAND}" | base64 -d | /bin/bash
               volumeMounts:
                 - mountPath: /data/simg
                   name: rootdisk
@@ -34,8 +39,8 @@ spec:
           volumes:
             - name: rootdisk
               persistentVolumeClaim:
-                claimName: rhel9-test-22
+                claimName: ${VM_NAME}
             - name: ssh
               secret:
-                secretName: rhel9-test-22-repl-ssh-keys
+                secretName: ${VM_NAME}-repl-ssh-keys
                 defaultMode: 0400

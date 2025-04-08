@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: ${VM_NAME}-dst-replicator
+  name: ${VM_NAME}-dst-svc
+spec:
+  ports:
+    - port: ${PORT}
+  selector:
+    app: ${VM_NAME}-dst-replicator
+  type: NodePort
