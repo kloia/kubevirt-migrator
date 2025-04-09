@@ -18,6 +18,7 @@ type TemplateManager interface {
 	SetKubeCLI(kubeCLI string)
 }
 
+
 // Manager handles the templates
 type Manager struct {
 	executor executor.CommandExecutor
